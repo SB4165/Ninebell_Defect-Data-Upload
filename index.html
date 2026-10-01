@@ -61,7 +61,8 @@ textarea:focus,input:focus,select:focus{outline:2px solid var(--acc);outline-off
 .actsel{display:flex;flex-wrap:wrap;gap:6px}
 .csel{color:#1f2328}
 .csel option{color:#1f2328}
-input.need{background:var(--empty);border-color:#e0a49a;color:#1f2328}
+input.need,select.need{background:var(--empty);border-color:#e0a49a;color:#1f2328}
+.actsel.need{background:var(--empty);border:1px solid #e0a49a;border-radius:6px;padding:6px}
 input.need::placeholder{color:#8a4a40}
 .qty{display:flex;align-items:center;gap:6px}
 .qty input{max-width:120px}
@@ -510,7 +511,9 @@ function renderCard(it, i){
   const top = it.recs[0];
   const chips = it.recs.map((r,j)=>`<span class="chip${r.parts.join()=== [it.b,it.m,it.s].join()?' on':''}" data-rec="${j}"><b>${esc(r.parts[1])} › ${esc(r.parts[2])}</b> ${Math.round(r.p*100)}%${r.hist?' · 이력':''}</span>`).join('');
   const f = (lab, html) => `<div class="f"><label>${lab}</label>${html}</div>`;
-  const inp = (k, ph='') => `<input data-k="${k}" value="${esc(it[k])}" placeholder="${ph}">`;
+  // P.S 외에 비어 있는 칸은 분홍색으로 '입력 필요' 표시
+  const nd = v => clean(v) ? '' : 'need';
+  const inp = (k, ph='') => `<input data-k="${k}" value="${esc(it[k])}" placeholder="${ph || (k==='ps' ? '' : '입력 필요')}" class="${k==='ps' ? '' : nd(it[k])}">`;
   return `<div class="card" data-i="${i}">
     <div class="box-h"><h2>${it.blank?'직접 입력':`#${i+1} ${esc(it.pn || it.proj || '')}`}</h2>
       <div class="row" style="margin:0">${top?`<span class="conf ${confCls(top.p)}">추천 신뢰도 ${Math.round(top.p*100)}%</span>`:''}
@@ -521,17 +524,17 @@ function renderCard(it, i){
         ${f('발견한 날짜', inp('date'))}
         ${f('프로젝트 발주명', inp('proj'))}
         ${f('장비타입', it.types.length>1 ? `<select data-k="type">${opt([it.type,...it.types].filter(Boolean), it.type)}</select>` : inp('type'))}
-        ${f('발견자', `<div class="combo"><input data-k="finder" data-combo="finder" value="${esc(it.finder)}" placeholder="이름 · 초성 검색 (예: ㄱㅅㅂ)" autocomplete="off"><div class="dd"></div></div>`)}
-        ${f('품명', `<input data-k="name" value="${esc(it.name)}" placeholder="품명 입력 필요" class="${clean(it.name)?'':'need'}">`)}
+        ${f('발견자', `<div class="combo"><input data-k="finder" data-combo="finder" value="${esc(it.finder)}" placeholder="입력 필요 · 초성 검색 (예: ㄱㅅㅂ)" autocomplete="off" class="${nd(it.finder)}"><div class="dd"></div></div>`)}
+        ${f('품명', `<input data-k="name" value="${esc(it.name)}" placeholder="품명 입력 필요" class="${nd(it.name)}">`)}
         ${f('품번', inp('pn'))}
-        ${f('수량', `<div class="qty"><input data-k="qty" value="${esc(it.qty)}" inputmode="numeric" pattern="[0-9]*" placeholder="숫자"><span>EA</span></div>`)}
-        ${f('귀책', `<div class="combo"><input data-k="vendor" data-combo="vendor" value="${esc(it.vendor)}" placeholder="업체명 · 초성 검색 (예: ㅇㅍ)" autocomplete="off"><div class="dd"></div></div>`)}
+        ${f('수량', `<div class="qty"><input data-k="qty" value="${esc(it.qty)}" inputmode="numeric" pattern="[0-9]*" placeholder="입력 필요" class="${nd(it.qty)}"><span>EA</span></div>`)}
+        ${f('귀책', `<div class="combo"><input data-k="vendor" data-combo="vendor" value="${esc(it.vendor)}" placeholder="입력 필요 · 업체명 초성 검색 (예: ㅇㅍ)" autocomplete="off" class="${nd(it.vendor)}"><div class="dd"></div></div>`)}
         ${f('발생기인', (() => { const bc = bigColor(it.b), st = bc ? ` class="csel" style="background:${bc}"` : '';
-          return `<div class="cat3"><select data-k="b"${st}>${opt(bigs,it.b,bigColor,CONFIG.BIG_ORDER)}</select><select data-k="m"${st}>${opt(mids,it.m,bc?()=>bc:null)}</select><select data-k="s"${st}>${opt(subs,it.s,bc?()=>bc:null)}</select></div>`; })())}
+          return `<div class="cat3"><select data-k="b"${it.b?st:' class="need"'}>${opt(bigs,it.b,bigColor,CONFIG.BIG_ORDER)}</select><select data-k="m"${it.m?st:' class="need"'}>${opt(mids,it.m,bc?()=>bc:null)}</select><select data-k="s"${it.s?st:' class="need"'}>${opt(subs,it.s,bc?()=>bc:null)}</select></div>`; })())}
         ${chips?`<div class="chips">${chips}</div>`:''}
         ${f('발생시점', `<div class="actsel">${CONFIG.WHEN.map(([n,c])=>`<button type="button" class="ac${it.when===n?' on':''}" data-when="${n}" style="background:${c}" aria-pressed="${it.when===n}">${n}</button>`).join('')}</div>`)}
         ${f('불량내용', inp('text'))}
-        ${f('조치내용', `<div class="actsel">${CONFIG.ACTIONS.map(([n,c])=>`<button type="button" class="ac${it.act===n?' on':''}" data-actv="${esc(n)}" style="background:${c}" aria-pressed="${it.act===n}">${esc(n)}</button>`).join('')}</div>`)}
+        ${f('조치내용', `<div class="actsel ${nd(it.act)}">${CONFIG.ACTIONS.map(([n,c])=>`<button type="button" class="ac${it.act===n?' on':''}" data-actv="${esc(n)}" style="background:${c}" aria-pressed="${it.act===n}">${esc(n)}</button>`).join('')}</div>`)}
         ${f('P.S', inp('ps'))}
       </div>
       <div class="out"><pre data-out>${esc(formatText(it))}</pre></div>
@@ -625,7 +628,7 @@ cards.addEventListener('input', e => {
   }
   if (k==='qty' && /\D/.test(el.value)) el.value = el.value.replace(/\D/g,'');   // 숫자만
   it[k] = el.value;
-  if (k==='name') el.classList.toggle('need', !clean(el.value));
+  if (k!=='ps' && el.tagName==='INPUT') el.classList.toggle('need', !clean(el.value));
   if (k==='finder') { store.set('nc_finder', el.value); openDD(el); }
   if (k==='vendor') { openDD(el); if (S.vendorBig[el.value]) { /* 정확히 일치하면 바로 적용은 blur 시 */ } }
   if (k==='text') { it.recs = Model.predict(it.text, { vendor: it.vendor||null, big: it.vendor?S.vendorBig[it.vendor]:null, allowed:S.allowed, memo:S.memo }); }
