@@ -99,7 +99,6 @@ input.need::placeholder{color:#8a4a40}
       <div class="row">
         <button class="btn pri" id="go">변환</button>
         <button class="btn" id="clear">지우기</button>
-        <input id="finder" class="finder" placeholder="발견자 (자동 저장)">
         <span class="mut" style="margin-left:auto">Ctrl+Enter로 변환</span>
       </div>
     </div>
@@ -439,7 +438,7 @@ function makeItem(p){
   const pt = projName ? projectType(projName, p.kw) : { type:'', list:[] };
   const it = {
     date: today(), proj: projName, type: pt.type, types: pt.list, projUnknown: !!p.proj?.unknown || (projName && !pt.type),
-    finder: store.get('nc_finder',''), name: p.part?.name || '', pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
+    finder: store.get('nc_finder',''), name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
     qty: p.qty || '1 EA', b:'', m:'', s:'', when:'공정', text: p.text.join(' / '), act:'', vendor:'', ps:'',
     recs: [], manual:false
   };
@@ -458,7 +457,7 @@ function formatText(it){
     `프로젝트 발주명 : ${it.proj}`,
     `장비타입 : ${it.type}`,
     `발견자 : ${it.finder}`,
-    `품명 : ${it.name}`,
+    `품명 : ${fmtName(it.name)}`,
     `품번 : ${it.pn}`,
     `수량 : ${it.qty}`,
     `발생기인(대분류) : ${it.b}`,
@@ -471,6 +470,8 @@ function formatText(it){
     `P.S : ${it.ps}`
   ].join('\n');
 }
+// 품명 표기: 영문은 대문자, 프레임/FRAME이 들어가면 '-'
+const fmtName = n => { n = clean(n); if (!n) return ''; if (/프레임|FRAME/i.test(n)) return '-'; return n.toUpperCase(); };
 const ko = (a,b) => String(a).localeCompare(String(b),'ko');
 // 가나다순 정렬 + 빈 선택지 없음 (값이 없을 때만 숨김 안내 문구)
 const opt = (arr, v, color, order) => (v && arr.includes(v) ? [] : ['<option value="" disabled selected hidden>선택</option>'])
@@ -556,8 +557,7 @@ $('#go').onclick = run;
 $('#clear').onclick = () => { $('#src').value=''; S.items=[]; rerender(); $('#src').focus(); };
 $('#src').addEventListener('keydown', e => { if (e.key==='Enter' && (e.ctrlKey||e.metaKey)) { e.preventDefault(); run(); } });
 $('#src').addEventListener('paste', () => setTimeout(run, 0));
-$('#finder').value = store.get('nc_finder','');
-$('#finder').addEventListener('input', e => { store.set('nc_finder', e.target.value); S.items.forEach((it,i)=>{ it.finder=e.target.value; refreshOut(i); }); });
+
 
 async function copy(text){
   try { await navigator.clipboard.writeText(text); }
@@ -584,7 +584,7 @@ cards.addEventListener('input', e => {
   const i = +card.dataset.i, it = S.items[i], k = el.dataset.k;
   it[k] = el.value;
   if (k==='name') el.classList.toggle('need', !clean(el.value));
-  if (k==='finder') { store.set('nc_finder', el.value); $('#finder').value = el.value; }
+  if (k==='finder') store.set('nc_finder', el.value);
   if (k==='vendor') { openDD(el); if (S.vendorBig[el.value]) { /* 정확히 일치하면 바로 적용은 blur 시 */ } }
   if (k==='text') { it.recs = Model.predict(it.text, { vendor: it.vendor||null, big: it.vendor?S.vendorBig[it.vendor]:null, allowed:S.allowed, memo:S.memo }); }
   refreshOut(i);
@@ -599,7 +599,7 @@ cards.addEventListener('change', e => {
   if (k==='s') { it.s = el.value; it.manual = true; return refreshCard(i); }
   if (k==='text') { if (!it.manual) recommend(it, true); return refreshCard(i); }
   if (k==='proj') { const pj = findProject(it.proj); const pt = projectType(pj?.name || it.proj, KW(it.proj) || ''); it.type = pt.type || it.type; it.types = pt.list; it.projUnknown = !pt.type; return refreshCard(i); }
-  if (k==='pn') { const p = S.parts.get(key(it.pn)); if (p) { it.name = p.name; it.partUnknown = false; } return refreshCard(i); }
+  if (k==='pn') { const p = S.parts.get(key(it.pn)); if (p) { it.name = fmtName(p.name); it.partUnknown = false; } return refreshCard(i); }
   refreshOut(i);
 });
 cards.addEventListener('keydown', e => {
