@@ -62,7 +62,8 @@ textarea:focus,input:focus,select:focus{outline:2px solid var(--acc);outline-off
 .csel{color:#1f2328}
 .csel option{color:#1f2328}
 input.need,select.need{background:var(--empty);border-color:#e0a49a;color:#1f2328}
-.actsel.need{background:var(--empty);border:1px solid #e0a49a;border-radius:6px;padding:6px}
+.actsel.need{border:2px dashed #d1242f;border-radius:6px;padding:6px;background:#fff}
+.actsel.need::after{content:'선택 필요';font-size:12px;color:#d1242f;align-self:center;margin-left:4px}
 input.need::placeholder{color:#8a4a40}
 .qty{display:flex;align-items:center;gap:6px}
 .qty input{max-width:120px}
@@ -74,7 +75,12 @@ input.need::placeholder{color:#8a4a40}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
 .toast.on{opacity:1}
 .empty{color:var(--mut);text-align:center;padding:32px 12px}
+/* 모바일 전용 하단 복사 버튼 */
+.mcopy{display:none;width:100%;margin-top:10px;padding:10px;font-size:15px}
 @media (max-width:760px){
+  .mcopy{display:block}
+  #copyall2{margin:0 0 24px}
+  .toast{top:16px;bottom:auto}
   .grid{grid-template-columns:1fr}
   .form{border-right:0;border-bottom:1px solid var(--bd2)}
   .f{grid-template-columns:1fr;gap:2px}
@@ -106,6 +112,7 @@ input.need::placeholder{color:#8a4a40}
     <button class="btn pri sm" id="copyall" style="margin-left:auto">전체 복사</button>
   </div>
   <div id="cards"></div>
+  <button class="btn pri mcopy" id="copyall2" style="display:none">전체 복사</button>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -537,7 +544,7 @@ function renderCard(it, i){
         ${f('조치내용', `<div class="actsel ${nd(it.act)}">${CONFIG.ACTIONS.map(([n,c])=>`<button type="button" class="ac${it.act===n?' on':''}" data-actv="${esc(n)}" style="background:${c}" aria-pressed="${it.act===n}">${esc(n)}</button>`).join('')}</div>`)}
         ${f('P.S', inp('ps'))}
       </div>
-      <div class="out"><pre data-out>${esc(formatText(it))}</pre></div>
+      <div class="out"><pre data-out>${esc(formatText(it))}</pre><button class="btn pri mcopy" data-copy>복사</button></div>
     </div></div>`;
 }
 function rerender(){
@@ -545,6 +552,7 @@ function rerender(){
   if (!S.items.length) S.items = [Object.assign(makeItem({ proj:null, kw:'', part:null, qty:'', text:[] }), { blank:true })];   // 입력 전에도 빈 양식 항상 표시
   box.innerHTML = S.items.map(renderCard).join('');
   const blank = S.items.length===1 && S.items[0].blank;
+  $('#copyall2').style.display = S.items.length > 1 ? '' : 'none';   // 여러 건일 때만 (모바일에서만 보임)
   $('#allbar').style.display = blank ? 'none' : 'flex'; $('#cnt').textContent = `${S.items.length}건 변환됨`;
 }
 function refreshCard(i){ const el = document.querySelector(`.card[data-i="${i}"]`); const tmp = document.createElement('div'); tmp.innerHTML = renderCard(S.items[i], i); el.replaceWith(tmp.firstElementChild); }
@@ -604,7 +612,7 @@ async function copy(text){
   catch(e){ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
   toast('복사했어요');
 }
-$('#copyall').onclick = () => copy(S.items.map(formatText).join('\n\n'));
+$('#copyall').onclick = $('#copyall2').onclick = () => copy(S.items.map(formatText).join('\n\n'));
 
 const cards = $('#cards');
 cards.addEventListener('click', e => {
