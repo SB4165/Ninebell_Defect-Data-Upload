@@ -63,6 +63,9 @@ textarea:focus,input:focus,select:focus{outline:2px solid var(--acc);outline-off
 .csel option{color:#1f2328}
 input.need{background:var(--empty);border-color:#e0a49a;color:#1f2328}
 input.need::placeholder{color:#8a4a40}
+.qty{display:flex;align-items:center;gap:6px}
+.qty input{max-width:120px}
+.qty span{color:var(--mut);font-size:13px;font-weight:600}
 .ac{font:inherit;font-size:13px;border:1px solid transparent;border-radius:2em;padding:2px 12px;cursor:pointer;color:#1f2328}
 .ac:hover{border-color:rgba(31,35,40,.4)}
 .ac.on{border-color:#1f2328;font-weight:600;box-shadow:0 0 0 1px #1f2328 inset}
@@ -436,7 +439,7 @@ function parseMessage(text){
       cur.part = pt; line = removeOnce(line, pt.raw);
     }
     // 수량
-    const q = line.match(QTY); if (q) { cur.qty = q[1] + ' EA'; line = line.replace(QTY,''); }
+    const q = line.match(QTY); if (q) { cur.qty = String(+q[1]); line = line.replace(QTY,''); }
     line = line.replace(/^[\s,/:|-]+|[\s,/:|-]+$/g,'').trim();
     if (/^수량\s*[:：]?$/.test(line)) line = '';
     if (line) cur.text.push(line);
@@ -453,7 +456,7 @@ function makeItem(p){
   const it = {
     date: today(), proj: projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
     finder: store.get('nc_finder',''), name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
-    qty: p.qty || '1 EA', b:'', m:'', s:'', when:'공정', text: p.text.join(' / '), act:'', vendor:'', ps:'',
+    qty: p.qty || '1', b:'', m:'', s:'', when:'공정', text: p.text.join(' / '), act:'', vendor:'', ps:'',
     recs: [], manual:false
   };
   recommend(it, true);
@@ -473,7 +476,7 @@ function formatText(it){
     `발견자 : ${it.finder}`,
     `품명 : ${fmtName(it.name)}`,
     `품번 : ${it.pn}`,
-    `수량 : ${it.qty}`,
+    `수량 : ${qtyText(it.qty)}`,
     `발생기인(대분류) : ${it.b}`,
     `발생기인(중분류) : ${it.m}`,
     `발생기인(소분류) : ${it.s}`,
@@ -486,6 +489,8 @@ function formatText(it){
 }
 // 품명 표기: 영문은 대문자, 프레임/FRAME이 들어가면 '-'
 const fmtName = n => { n = clean(n); if (!n) return ''; if (/프레임|FRAME/i.test(n)) return '-'; return n.toUpperCase(); };
+// 수량: 칸에는 숫자만, 결과에는 'EA'를 자동으로 붙임
+const qtyText = q => { q = String(q||'').replace(/\D/g,''); return q ? q + ' EA' : ''; };
 const ko = (a,b) => String(a).localeCompare(String(b),'ko');
 // 가나다순 정렬 + 빈 선택지 없음 (값이 없을 때만 숨김 안내 문구)
 const opt = (arr, v, color, order) => (v && arr.includes(v) ? [] : ['<option value="" disabled selected hidden>선택</option>'])
@@ -519,7 +524,7 @@ function renderCard(it, i){
         ${f('발견자', `<div class="combo"><input data-k="finder" data-combo="finder" value="${esc(it.finder)}" placeholder="이름 · 초성 검색 (예: ㄱㅅㅂ)" autocomplete="off"><div class="dd"></div></div>`)}
         ${f('품명', `<input data-k="name" value="${esc(it.name)}" placeholder="품명 입력 필요" class="${clean(it.name)?'':'need'}">`)}
         ${f('품번', inp('pn'))}
-        ${f('수량', inp('qty'))}
+        ${f('수량', `<div class="qty"><input data-k="qty" value="${esc(it.qty)}" inputmode="numeric" pattern="[0-9]*" placeholder="숫자"><span>EA</span></div>`)}
         ${f('귀책', `<div class="combo"><input data-k="vendor" data-combo="vendor" value="${esc(it.vendor)}" placeholder="업체명 · 초성 검색 (예: ㅇㅍ)" autocomplete="off"><div class="dd"></div></div>`)}
         ${f('발생기인', (() => { const bc = bigColor(it.b), st = bc ? ` class="csel" style="background:${bc}"` : '';
           return `<div class="cat3"><select data-k="b"${st}>${opt(bigs,it.b,bigColor,CONFIG.BIG_ORDER)}</select><select data-k="m"${st}>${opt(mids,it.m,bc?()=>bc:null)}</select><select data-k="s"${st}>${opt(subs,it.s,bc?()=>bc:null)}</select></div>`; })())}
@@ -618,6 +623,7 @@ cards.addEventListener('input', e => {
     // 키보드가 ㄱ+ㅅ을 ㄳ으로 합치면 바로 ㄱㅅ으로 풀고 입력을 확정 (다음 초성이 새로 입력되게)
     el.value = splitJamo(el.value); el.blur(); el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch(_){}
   }
+  if (k==='qty' && /\D/.test(el.value)) el.value = el.value.replace(/\D/g,'');   // 숫자만
   it[k] = el.value;
   if (k==='name') el.classList.toggle('need', !clean(el.value));
   if (k==='finder') { store.set('nc_finder', el.value); openDD(el); }
