@@ -352,6 +352,7 @@ async function loadAll(){
 /* ================== 메시지 해석 ================== */
 const NUM = /^\s*(?:\(?\d{1,2}\s*[.)\]]|[①-⑳]|[-*•·▶>])\s*/;
 const QTY = /(\d+)\s*(?:EA|ea|Ea|개|pcs|PCS|SET|set|세트)\b/;
+const PO_RE = /\bPO[-_][A-Z0-9][A-Z0-9_-]*/i;
 const KW  = s => /EFEM/i.test(s) ? 'EFEM' : /PROCESS|프로세스/i.test(s) ? 'PROCESS' : '';
 
 function findProject(line){
@@ -394,7 +395,7 @@ function findParts(line){
 function parseMessage(text){
   const lines = text.replace(/\r/g,'').split('\n');
   const items = []; let cur = null, lastNum = 0;
-  const fresh = (inherit) => ({ proj: inherit?.proj || null, kw: inherit?.kw || '', part: null, qty: '', text: [] , raw:[] });
+  const fresh = (inherit) => ({ proj: inherit?.proj || null, kw: inherit?.kw || '', po: inherit?.po || '', part: null, qty: '', text: [] , raw:[] });
   const push = () => { if (cur && (cur.part || cur.text.length || cur.proj)) items.push(cur); };
   for (let raw of lines) {
     if (!raw.trim()) { if (cur && (cur.part || cur.text.length)) { push(); cur = null; } continue; }
@@ -404,6 +405,12 @@ function parseMessage(text){
     if (num === 1 && lastNum >= 1 && (cur.part || cur.text.length)) { push(); cur = fresh(cur); }
     if (num) lastNum = num;
     // 프로젝트
+    // PO 번호 (예: PO-2026-08-4311) → 장비타입 칸에 그대로 기입, 품번/발주명으로 오인하지 않게 먼저 떼어냄
+    const po = line.match(PO_RE);
+    if (po) {
+      if (cur.po && cur.po !== po[0].toUpperCase() && (cur.part || cur.text.length)) { push(); cur = fresh(); }
+      cur.po = po[0].toUpperCase(); line = removeOnce(line, po[0]);
+    }
     const pj = findProject(line);
     if (pj) {
       if (cur.proj && cur.proj.name !== pj.name && (cur.part || cur.text.length)) { push(); cur = fresh(); }
@@ -431,7 +438,7 @@ function makeItem(p){
   const projName = p.proj?.name || '';
   const pt = projName ? projectType(projName, p.kw) : { type:'', list:[] };
   const it = {
-    date: today(), proj: projName, type: pt.type, types: pt.list, projUnknown: !!p.proj?.unknown || (projName && !pt.type),
+    date: today(), proj: projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
     finder: store.get('nc_finder',''), name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
     qty: p.qty || '1 EA', b:'', m:'', s:'', when:'공정', text: p.text.join(' / '), act:'', vendor:'', ps:'',
     recs: [], manual:false
@@ -478,7 +485,7 @@ function renderCard(it, i){
   const warn = [];
   if (!it.blank) {
   if (it.projUnknown && it.proj) warn.push('프로젝트 표에 없는 발주명 — 장비타입을 직접 입력하세요');
-  if (!it.proj) warn.push('발주명을 찾지 못했어요');
+  if (!it.proj && !it.po) warn.push('발주명을 찾지 못했어요');
   if (it.partUnknown) warn.push('품명/품번 표에 없는 품번 — 품명을 직접 입력하세요');
   if (!it.pn) warn.push('품번을 찾지 못했어요');
   }
