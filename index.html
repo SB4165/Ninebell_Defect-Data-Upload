@@ -116,10 +116,12 @@ input.need::placeholder{color:#8a4a40}
 /* ================== 설정 ================== */
 const CONFIG = {
   SHEET_ID: '1hWRxLYkJfPEBfItSNKv7IFuSOFcLI35b9jCHnKVRBtE',
-  REF:   { gid: '664632288',  range: 'AD1:AF3000' },   // 참조(2026): 분류표(6.1) + 귀책(6.3)
-  PROJ:  { gid: '664632288',  range: 'L1:M5000' },     // 참조(2026): 발주명(L) / TYPE(M)
-  PARTS: { gid: '1577658176', range: 'C1:D20000' },    // 품명/품번 시트: 품명(C) / 품번(D)
-  LEDGER:{ sheet: '수입공정 부적합 (2026)', range: 'K1:S20000' }, // 관리대장: 같은 문구 과거 분류 참고
+  // 시트 찾는 순서: ① 올해 연도 이름 → ② 시트 고유번호(gid, 이름을 바꿔도 유지됨) → ③ 작년 연도 이름
+  //   내용(제목 줄)이 맞는지 확인한 뒤 사용하므로, 연도가 바뀌어 이름이 달라져도 자동으로 찾아감
+  REF:   { names: y=>[`참조(${y})`,`참조 (${y})`], gid: '664632288',  range: 'AD1:AF3000' },  // 분류표(6.1) + 귀책(6.3)
+  PROJ:  { names: y=>[`참조(${y})`,`참조 (${y})`], gid: '664632288',  range: 'L1:M5000', merge: true }, // 발주명(L) / TYPE(M), 올해+작년 합침
+  PARTS: { gid: '1577658176', range: 'C1:D20000' },                                       // 품명/품번 시트: 품명(C) / 품번(D)
+  LEDGER:{ names: y=>[`수입공정 부적합 (${y})`,`수입/공정 부적합 (${y})`,`수입공정 부적합(${y})`], gid: '638838738', range: 'K1:S20000', merge: true }, // 관리대장 이력
   MODEL_URL: 'model.json',
   UPPER: ['TAP','HOLE','BURR'],         // 대문자로 통일할 소분류
   BIG_COLORS: {                          // 발생기인 대분류별 색상 (구글시트 칩 색상)
@@ -151,6 +153,27 @@ const choseong = s => [...String(s)].map(ch => { const c=ch.charCodeAt(0)-0xAC00
 
 /* ================== 구글시트 읽기 (JSONP, 공개 링크) ================== */
 let jsonpN = 0;
+// 여러 후보 시트를 순서대로 시도 → 내용 검사(ok)를 통과한 결과만 사용
+async function loadSheet(cfg, parse, ok){
+  const Y = new Date().getFullYear(), seen = new Set(), cands = [];
+  const add = c => { const k = c.sheet || 'gid:'+c.gid; if (!seen.has(k)) { seen.add(k); cands.push(c); } };
+  (cfg.names ? cfg.names(Y) : []).forEach(n => add({ sheet:n, range:cfg.range }));
+  if (cfg.gid) add({ gid:cfg.gid, range:cfg.range });
+  (cfg.names ? cfg.names(Y-1) : []).forEach(n => add({ sheet:n, range:cfg.range }));
+  const got = [], sigs = new Set();
+  for (const c of cands) {
+    try {
+      const rows = MOCK ? await gviz(cfg) : await gviz(c);
+      const sig = rows.length + '|' + JSON.stringify(rows.slice(0,8));   // 같은 시트를 이름·gid로 두 번 읽은 경우 제외
+      if (sigs.has(sig)) continue;
+      const x = parse(rows); if (!ok(x)) continue;
+      sigs.add(sig); got.push(x);
+      if (!cfg.merge || MOCK) break;
+    } catch(e) {}
+  }
+  if (!got.length) throw new Error('시트를 찾지 못함');
+  return got;
+}
 function gviz(src){
   if (MOCK) {
     const f = src===CONFIG.REF?'ref_AD_AF':src===CONFIG.PROJ?'proj_L_M':src===CONFIG.PARTS?'parts_C_D':null;
@@ -159,7 +182,7 @@ function gviz(src){
   return new Promise((res, rej) => {
     const cb = '__gv' + (++jsonpN) + '_' + Date.now();
     const p = new URLSearchParams({ tqx:'out:json;responseHandler:'+cb, headers:'0', range: src.range });
-    if (src.gid) p.set('gid', src.gid); if (src.sheet) p.set('sheet', src.sheet);
+    if (src.sheet) p.set('sheet', src.sheet); else if (src.gid) p.set('gid', src.gid);
     const s = document.createElement('script');
     const done = () => { delete window[cb]; s.remove(); clearTimeout(to); };
     const to = setTimeout(() => { done(); rej(new Error('시간 초과')); }, 20000);
@@ -297,12 +320,14 @@ async function loadAll(){
   if (cache) { Object.assign(S, { cats:cache.cats, vendors:cache.vendors, proj:cache.proj, parts:new Map(cache.parts) }); buildTree(); }
   setStatus();
   const jobs = [
-    gviz(CONFIG.REF).then(r=>{ const x=parseRef(r); if(!x.cats.length) throw 0; S.cats=x.cats; S.vendors=x.vendors; buildTree(); S.ld.ref=true; }).catch(()=>S.ld.ref=false),
-    gviz(CONFIG.PROJ).then(r=>{ S.proj=parseProj(r); S.ld.proj=S.proj.length>0; }).catch(()=>S.ld.proj=false),
-    gviz(CONFIG.PARTS).then(r=>{ S.parts=parseParts(r); S.ld.parts=S.parts.size>0; }).catch(()=>S.ld.parts=false),
+    loadSheet(CONFIG.REF, parseRef, x=>x.cats.length>0).then(([x])=>{ S.cats=x.cats; S.vendors=x.vendors; buildTree(); S.ld.ref=true; }).catch(()=>S.ld.ref=false),
+    loadSheet(CONFIG.PROJ, parseProj, x=>x.length>0).then(list=>{ const m=new Map(); list.flat().forEach(p=>{ if(!m.has(p.k)) m.set(p.k,p); }); S.proj=[...m.values()]; S.ld.proj=true; }).catch(()=>S.ld.proj=false),
+    loadSheet(CONFIG.PARTS, parseParts, x=>x.size>0).then(([x])=>{ S.parts=x; S.ld.parts=true; }).catch(()=>S.ld.parts=false),
     fetch(CONFIG.MODEL_URL).then(r=>r.json()).then(m=>{ Model.m=m; S.ld.model=true; }).catch(()=>S.ld.model=false),
   ];
-  gviz(CONFIG.LEDGER).then(r=>{ S.memo=parseLedger(r); rerender(); }).catch(()=>{});
+  loadSheet(CONFIG.LEDGER, parseLedger, x=>x.size>0).then(list=>{ const m=new Map();
+    for (const one of list) for (const [t,labs] of one) { const o=m.get(t)||{}; for (const [l,n] of Object.entries(labs)) o[l]=(o[l]||0)+n; m.set(t,o); }
+    S.memo=m; if (!(S.items.length===1 && S.items[0].blank)) rerender(); }).catch(()=>{});
   for (const j of jobs) j.then(setStatus);
   await Promise.all(jobs);
   setStatus();
