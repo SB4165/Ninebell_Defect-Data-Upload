@@ -95,7 +95,7 @@ input.need::placeholder{color:#8a4a40}
   <section class="box">
     <div class="box-h"><h2>메시지 붙여넣기</h2><span class="mut">순서·번호 상관없이 발주명 / 품번 / 불량내용 (여러 건은 빈 줄로 구분)</span></div>
     <div class="box-b">
-      <textarea id="src" placeholder="1.CC04-157&#10;2.SE-100P44-3&#10;3.탭 누락"></textarea>
+      <textarea id="src" placeholder="&lt;예시&gt;&#10;1.CC04-157&#10;2.SE-100P44-3&#10;3.탭 누락"></textarea>
       <div class="row">
         <button class="btn pri" id="go">변환</button>
         <button class="btn" id="clear">지우기</button>
@@ -126,6 +126,7 @@ const CONFIG = {
     '제조불량':'#d5ecbf', '기구설계불량':'#e5d2f2', '전장설계불량':'#e5d2f2', '제어설계불량':'#e5d2f2',
     '업체불량':'#c7e1f7', '기타불량':'#e6e8eb'
   },
+  BIG_ORDER: ['기구설계불량','전장설계불량','제어설계불량','업체불량','제조불량','기타불량'],   // 대분류 표시 순서
   WHEN: [['수입','#c7e1f7'], ['공정','#fde79a'], ['출하','#d5ecbf']],   // 발생시점 버튼
   EMPTY_COLOR: '#f9cdc6',                 // 비어 있는 품명 칸 표시 (업체반출 색)
   ACTIONS: [                              // 조치내용 드롭다운 (구글시트 칩 색상)
@@ -426,8 +427,8 @@ function formatText(it){
 }
 const ko = (a,b) => String(a).localeCompare(String(b),'ko');
 // 가나다순 정렬 + 빈 선택지 없음 (값이 없을 때만 숨김 안내 문구)
-const opt = (arr, v, color) => (v && arr.includes(v) ? [] : ['<option value="" disabled selected hidden>선택</option>'])
-  .concat([...new Set(arr)].sort(ko).map(x=>`<option${x===v?' selected':''}${color?` style="background:${color(x)}"`:''}>${esc(x)}</option>`)).join('');
+const opt = (arr, v, color, order) => (v && arr.includes(v) ? [] : ['<option value="" disabled selected hidden>선택</option>'])
+    .concat([...new Set(arr)].sort(order ? ((a,b)=>{ const ia=order.indexOf(a), ib=order.indexOf(b); return (ia<0?99:ia)-(ib<0?99:ib) || ko(a,b); }) : ko).map(x=>`<option${x===v?' selected':''}${color?` style="background:${color(x)}"`:''}>${esc(x)}</option>`)).join('');
 const bigColor = b => CONFIG.BIG_COLORS[b] || '';
 function confCls(p){ return p>=0.7?'h':p>=0.4?'m':'l'; }
 function renderCard(it, i){
@@ -460,7 +461,7 @@ function renderCard(it, i){
         ${f('수량', inp('qty'))}
         ${f('귀책', `<div class="combo"><input data-k="vendor" data-combo value="${esc(it.vendor)}" placeholder="업체명 · 초성 검색 (예: ㅇㅍ)" autocomplete="off"><div class="dd"></div></div>`)}
         ${f('발생기인', (() => { const bc = bigColor(it.b), st = bc ? ` class="csel" style="background:${bc}"` : '';
-          return `<div class="cat3"><select data-k="b"${st}>${opt(bigs,it.b,bigColor)}</select><select data-k="m"${st}>${opt(mids,it.m,bc?()=>bc:null)}</select><select data-k="s"${st}>${opt(subs,it.s,bc?()=>bc:null)}</select></div>`; })())}
+          return `<div class="cat3"><select data-k="b"${st}>${opt(bigs,it.b,bigColor,CONFIG.BIG_ORDER)}</select><select data-k="m"${st}>${opt(mids,it.m,bc?()=>bc:null)}</select><select data-k="s"${st}>${opt(subs,it.s,bc?()=>bc:null)}</select></div>`; })())}
         ${chips?`<div class="chips">${chips}</div>`:''}
         ${f('발생시점', `<div class="actsel">${CONFIG.WHEN.map(([n,c])=>`<button type="button" class="ac${it.when===n?' on':''}" data-when="${n}" style="background:${c}" aria-pressed="${it.when===n}">${n}</button>`).join('')}</div>`)}
         ${f('불량내용', inp('text'))}
