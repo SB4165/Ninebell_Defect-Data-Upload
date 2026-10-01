@@ -113,7 +113,7 @@ const CONFIG = {
   //   내용(제목 줄)이 맞는지 확인한 뒤 사용하므로, 연도가 바뀌어 이름이 달라져도 자동으로 찾아감
   REF:   { names: y=>[`참조(${y})`,`참조 (${y})`], gid: '664632288',  range: 'AD1:AF3000' },  // 분류표(6.1) + 귀책(6.3)
   PROJ:  { names: y=>[`참조(${y})`,`참조 (${y})`], gid: '664632288',  range: 'L1:M5000', merge: true }, // 발주명(L) / TYPE(M), 올해+작년 합침
-  PARTS: { gid: '1577658176', range: 'C1:D20000' },                                       // 품명/품번 시트 C~D열 (제목 '품번'/'품명'으로 순서 자동 판단)
+  PARTS: { gid: '1577658176', range: 'A1:Z20000' },                                       // 품명/품번 시트 (제목 '품번'/'품명'/'발견자' 글자로 열 위치 자동 판단)
   LEDGER:{ names: y=>[`수입공정 부적합 (${y})`,`수입/공정 부적합 (${y})`,`수입공정 부적합(${y})`], gid: '638838738', range: 'K1:S20000', merge: true }, // 관리대장 이력
   MODEL_URL: 'model.json',
   UPPER: ['TAP','HOLE','BURR'],         // 대문자로 통일할 소분류
@@ -226,8 +226,9 @@ function parseParts(rows){
     if (a >= 0 && b >= 0) { pi = a; ni = b; start = i + 1; break; }
   }
   if (pi < 0) {   // 제목이 없으면 내용으로 추정: 숫자+하이픈이 많은 열이 품번
+    const n = Math.max(...rows.slice(0,50).map(r=>r.length), 2);
     const score = j => rows.slice(0,300).filter(r => /\d/.test(r[j]||'') && /-/.test(r[j]||'')).length;
-    [pi, ni] = score(0) >= score(1) ? [0, 1] : [1, 0];
+    pi = [...Array(n).keys()].sort((a,b)=>score(b)-score(a))[0]; ni = pi + 1 < n ? pi + 1 : pi - 1;
   }
   const map = new Map();
   for (const r of rows.slice(start)) {
@@ -239,6 +240,18 @@ function parseParts(rows){
     }
   }
   return map;
+}
+// 발견자 명단: '발견자' 제목이 있는 열의 아래 이름들 (열이 어디로 옮겨져도 제목으로 찾음)
+function parseFinders(rows){
+  let ci = -1, start = 0;
+  for (let i = 0; i < Math.min(rows.length, 30) && ci < 0; i++) {
+    const j = rows[i].findIndex(x => clean(x).replace(/\s/g,'') === '발견자');
+    if (j >= 0) { ci = j; start = i + 1; }
+  }
+  if (ci < 0) return [];
+  const seen = new Set(), out = [];
+  for (const r of rows.slice(start)) { const n = clean(r[ci]); if (n && n !== '발견자' && !seen.has(n)) { seen.add(n); out.push(n); } }
+  return out.sort(ko);
 }
 function parseLedger(rows){
   // 제목 줄에서 열 위치 찾기: 귀책업체, 대/중/소분류, 불량내용
@@ -301,7 +314,7 @@ const Model = {
 };
 
 /* ================== 상태 ================== */
-const S = { cats:[], vendors:[], proj:[], parts:new Map(), memo:null, allowed:null, tree:{} , items:[] };
+const S = { cats:[], vendors:[], proj:[], parts:new Map(), finders:[], memo:null, allowed:null, tree:{} , items:[] };
 // 모델 성적표 (매주 재학습 때 model_report.json 자동 갱신)
 function reportPill(){
   const r = S.report; if (!r || r.recent_top1 == null) return '';
@@ -330,12 +343,12 @@ async function loadAll(){
   S.ld = { ref:null, proj:null, parts:null, model:null };
   // 캐시로 먼저 표시 → 최신 데이터로 갱신
   const cache = store.get('nc_cache', null);
-  if (cache) { Object.assign(S, { cats:cache.cats, vendors:cache.vendors, proj:cache.proj, parts:new Map(cache.parts) }); buildTree(); }
+  if (cache) { Object.assign(S, { cats:cache.cats, vendors:cache.vendors, proj:cache.proj, parts:new Map(cache.parts), finders:cache.finders||[] }); buildTree(); }
   setStatus();
   const jobs = [
     loadSheet(CONFIG.REF, parseRef, x=>x.cats.length>0).then(([x])=>{ S.cats=x.cats; S.vendors=x.vendors; buildTree(); S.ld.ref=true; }).catch(()=>S.ld.ref=false),
     loadSheet(CONFIG.PROJ, parseProj, x=>x.length>0).then(list=>{ const m=new Map(); list.flat().forEach(p=>{ if(!m.has(p.k)) m.set(p.k,p); }); S.proj=[...m.values()]; S.ld.proj=true; }).catch(()=>S.ld.proj=false),
-    loadSheet(CONFIG.PARTS, parseParts, x=>x.size>0).then(([x])=>{ S.parts=x; S.ld.parts=true; }).catch(()=>S.ld.parts=false),
+    loadSheet(CONFIG.PARTS, r=>({ parts:parseParts(r), finders:parseFinders(r) }), x=>x.parts.size>0).then(([x])=>{ S.parts=x.parts; S.finders=x.finders; S.ld.parts=true; }).catch(()=>S.ld.parts=false),
     fetch('model_report.json?t=' + Date.now()).then(r=>r.ok?r.json():null).then(r=>{ S.report=r; }).catch(()=>{}),
     fetch(CONFIG.MODEL_URL).then(r=>r.json()).then(m=>{ Model.m=m; S.ld.model=true; }).catch(()=>S.ld.model=false),
   ];
@@ -345,7 +358,7 @@ async function loadAll(){
   for (const j of jobs) j.then(setStatus);
   await Promise.all(jobs);
   setStatus();
-  store.set('nc_cache', { cats:S.cats, vendors:S.vendors, proj:S.proj, parts:[...S.parts] });
+  store.set('nc_cache', { cats:S.cats, vendors:S.vendors, proj:S.proj, parts:[...S.parts], finders:S.finders });
   if ($('#src').value.trim()) run(); else { S.items = []; rerender(); }
 }
 
@@ -503,11 +516,11 @@ function renderCard(it, i){
         ${f('발견한 날짜', inp('date'))}
         ${f('프로젝트 발주명', inp('proj'))}
         ${f('장비타입', it.types.length>1 ? `<select data-k="type">${opt([it.type,...it.types].filter(Boolean), it.type)}</select>` : inp('type'))}
-        ${f('발견자', inp('finder','이름'))}
+        ${f('발견자', `<div class="combo"><input data-k="finder" data-combo="finder" value="${esc(it.finder)}" placeholder="이름 · 초성 검색 (예: ㄱㅅㅂ)" autocomplete="off"><div class="dd"></div></div>`)}
         ${f('품명', `<input data-k="name" value="${esc(it.name)}" placeholder="품명 입력 필요" class="${clean(it.name)?'':'need'}">`)}
         ${f('품번', inp('pn'))}
         ${f('수량', inp('qty'))}
-        ${f('귀책', `<div class="combo"><input data-k="vendor" data-combo value="${esc(it.vendor)}" placeholder="업체명 · 초성 검색 (예: ㅇㅍ)" autocomplete="off"><div class="dd"></div></div>`)}
+        ${f('귀책', `<div class="combo"><input data-k="vendor" data-combo="vendor" value="${esc(it.vendor)}" placeholder="업체명 · 초성 검색 (예: ㅇㅍ)" autocomplete="off"><div class="dd"></div></div>`)}
         ${f('발생기인', (() => { const bc = bigColor(it.b), st = bc ? ` class="csel" style="background:${bc}"` : '';
           return `<div class="cat3"><select data-k="b"${st}>${opt(bigs,it.b,bigColor,CONFIG.BIG_ORDER)}</select><select data-k="m"${st}>${opt(mids,it.m,bc?()=>bc:null)}</select><select data-k="s"${st}>${opt(subs,it.s,bc?()=>bc:null)}</select></div>`; })())}
         ${chips?`<div class="chips">${chips}</div>`:''}
@@ -543,12 +556,25 @@ function vendorMatches(q, big){
     if (!qq) return 1; if (n.startsWith(qq)) return 4; if (n.includes(qq)) return 3; if (c.startsWith(qc)) return 2; if (c.includes(qc)) return 1; return 0; };
   return list.map(v=>({v,s:score(v)+(big&&v.big===big?0.5:0)})).filter(x=>x.s>=1).sort((a,b)=>b.s-a.s || ko(a.v.name,b.v.name)).slice(0,30).map(x=>x.v);
 }
+function nameMatches(q, names){
+  const qq = clean(q).toLowerCase(), qc = choseong(qq);
+  const score = n => { const l=n.toLowerCase(), c=choseong(l);
+    if (!qq) return 1; if (l.startsWith(qq)) return 4; if (l.includes(qq)) return 3; if (c.startsWith(qc)) return 2; if (c.includes(qc)) return 1; return 0; };
+  return names.map(n=>({n,s:score(n)})).filter(x=>x.s>=1).sort((a,b)=>b.s-a.s || ko(a.n,b.n)).slice(0,30).map(x=>x.n);
+}
 function openDD(input){
   const card = input.closest('.card'), it = S.items[+card.dataset.i], dd = input.nextElementSibling;
-  const list = vendorMatches(input.value, it.b);
-  dd.innerHTML = list.map((v,j)=>`<div data-v="${esc(v.name)}" class="${j===0?'act':''}">${esc(v.name)}<small>${esc(v.big)}</small></div>`).join('') || '<div><small>결과 없음</small></div>';
+  if (input.dataset.combo === 'finder') {
+    const list = nameMatches(input.value, S.finders);
+    dd.innerHTML = list.map((n,j)=>`<div data-v="${esc(n)}" class="${j===0?'act':''}">${esc(n)}</div>`).join('') || '<div><small>명단에 없음 — 그대로 입력돼요</small></div>';
+  } else {
+    const list = vendorMatches(input.value, it.b);
+    dd.innerHTML = list.map((v,j)=>`<div data-v="${esc(v.name)}" class="${j===0?'act':''}">${esc(v.name)}<small>${esc(v.big)}</small></div>`).join('') || '<div><small>결과 없음</small></div>';
+  }
   dd.style.display = 'block';
 }
+function pickFinder(i, name){ const it = S.items[i]; it.finder = name; store.set('nc_finder', name); S.items.forEach((x,j)=>{ if (j!==i && !x.finder) x.finder = name; }); rerender(); }
+function pickCombo(el, name){ const i = +el.closest('.card').dataset.i; return el.dataset.combo === 'finder' ? pickFinder(i, name) : pickVendor(i, name); }
 function pickVendor(i, name){
   const it = S.items[i]; it.vendor = name; it.manual = false; recommend(it, true); refreshCard(i);
 }
@@ -578,14 +604,14 @@ cards.addEventListener('click', e => {
   if (ac) { it.act = it.act === ac.dataset.actv ? '' : ac.dataset.actv; return refreshCard(i); }   // 다시 누르면 해제
   const chip = e.target.closest('[data-rec]');
   if (chip) { [it.b,it.m,it.s] = it.recs[+chip.dataset.rec].parts; it.manual = true; return refreshCard(i); }
-  const dv = e.target.closest('.dd [data-v]'); if (dv) return pickVendor(i, dv.dataset.v);
+  const dv = e.target.closest('.dd [data-v]'); if (dv) return pickCombo(dv.closest('.combo').querySelector('input'), dv.dataset.v);
 });
 cards.addEventListener('input', e => {
   const el = e.target, card = el.closest('.card'); if (!card || !el.dataset.k) return;
   const i = +card.dataset.i, it = S.items[i], k = el.dataset.k;
   it[k] = el.value;
   if (k==='name') el.classList.toggle('need', !clean(el.value));
-  if (k==='finder') store.set('nc_finder', el.value);
+  if (k==='finder') { store.set('nc_finder', el.value); openDD(el); }
   if (k==='vendor') { openDD(el); if (S.vendorBig[el.value]) { /* 정확히 일치하면 바로 적용은 blur 시 */ } }
   if (k==='text') { it.recs = Model.predict(it.text, { vendor: it.vendor||null, big: it.vendor?S.vendorBig[it.vendor]:null, allowed:S.allowed, memo:S.memo }); }
   refreshOut(i);
@@ -607,7 +633,7 @@ cards.addEventListener('keydown', e => {
   const el = e.target; if (!el.hasAttribute('data-combo')) return;
   const dd = el.nextElementSibling, items = [...dd.querySelectorAll('[data-v]')]; let a = items.findIndex(x=>x.classList.contains('act'));
   if (e.key==='ArrowDown'||e.key==='ArrowUp') { e.preventDefault(); if(!items.length) return; items[a]?.classList.remove('act'); a = (a + (e.key==='ArrowDown'?1:-1) + items.length) % items.length; items[a].classList.add('act'); items[a].scrollIntoView({block:'nearest'}); }
-  if (e.key==='Enter') { e.preventDefault(); const pick = items[a] || items[0]; if (pick) pickVendor(+el.closest('.card').dataset.i, pick.dataset.v); }
+  if (e.key==='Enter') { e.preventDefault(); const pick = items[a] || items[0]; if (pick) pickCombo(el, pick.dataset.v); }
   if (e.key==='Escape') dd.style.display='none';
 });
 cards.addEventListener('focusin', e => { if (e.target.hasAttribute('data-combo')) openDD(e.target); });
@@ -616,6 +642,7 @@ cards.addEventListener('focusout', e => {
   const el = e.target; if (!el.hasAttribute('data-combo')) return;
   setTimeout(() => { const card = el.closest('.card'); if (!card || card.contains(document.activeElement) && document.activeElement===el) return;
     const i = +card.dataset.i, it = S.items[i];
+    if (el.dataset.combo !== 'vendor') return;
     if (S.vendorBig[it.vendor] && S.vendorBig[it.vendor] !== it.b) pickVendor(i, it.vendor); }, 150);
 });
 
