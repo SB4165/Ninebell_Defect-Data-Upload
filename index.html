@@ -297,6 +297,13 @@ const Model = {
 
 /* ================== 상태 ================== */
 const S = { cats:[], vendors:[], proj:[], parts:new Map(), memo:null, allowed:null, tree:{} , items:[] };
+// 모델 성적표 (매주 재학습 때 model_report.json 자동 갱신)
+function reportPill(){
+  const r = S.report; if (!r || r.recent_top1 == null) return '';
+  const pct = x => Math.round(x*100) + '%';
+  const d = String(r.date||'').slice(5,10).replace('-','/');
+  return `<span class="pill" title="최근 60일 데이터 기준 · 학습 ${Number(r.rows||0).toLocaleString()}건 · 분류 ${r.labels||''}개">최근 정확도 ${pct(r.recent_top1)} · 3순위 ${pct(r.recent_top3)} · ${d} 학습</span>`;
+}
 function setStatus(){
   const p = (ok, label) => `<span class="pill ${ok===true?'ok':ok===false?'err':''}">${label}</span>`;
   $('#status').innerHTML = [
@@ -305,6 +312,7 @@ function setStatus(){
     p(S.ld.proj, '프로젝트 ' + (S.proj.length||'')),
     p(S.ld.parts, '품번 ' + (S.parts.size||'')),
     p(S.ld.model, '추천모델'),
+    reportPill(),
     MOCK ? p(null,'테스트 데이터') : ''
   ].join('');
 }
@@ -323,6 +331,7 @@ async function loadAll(){
     loadSheet(CONFIG.REF, parseRef, x=>x.cats.length>0).then(([x])=>{ S.cats=x.cats; S.vendors=x.vendors; buildTree(); S.ld.ref=true; }).catch(()=>S.ld.ref=false),
     loadSheet(CONFIG.PROJ, parseProj, x=>x.length>0).then(list=>{ const m=new Map(); list.flat().forEach(p=>{ if(!m.has(p.k)) m.set(p.k,p); }); S.proj=[...m.values()]; S.ld.proj=true; }).catch(()=>S.ld.proj=false),
     loadSheet(CONFIG.PARTS, parseParts, x=>x.size>0).then(([x])=>{ S.parts=x; S.ld.parts=true; }).catch(()=>S.ld.parts=false),
+    fetch('model_report.json?t=' + Date.now()).then(r=>r.ok?r.json():null).then(r=>{ S.report=r; }).catch(()=>{}),
     fetch(CONFIG.MODEL_URL).then(r=>r.json()).then(m=>{ Model.m=m; S.ld.model=true; }).catch(()=>S.ld.model=false),
   ];
   loadSheet(CONFIG.LEDGER, parseLedger, x=>x.size>0).then(list=>{ const m=new Map();
