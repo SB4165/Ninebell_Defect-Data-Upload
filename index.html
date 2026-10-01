@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>부적합 양식 변환기</title>
+<style>
+:root{
+  --bg:#ffffff; --bg2:#f6f8fa; --bd:#d0d7de; --bd2:#d8dee4; --fg:#1f2328; --mut:#59636e;
+  --acc:#0969da; --acc-bg:#ddf4ff; --ok:#1a7f37; --ok-bg:#dafbe1; --btn:#1f883d; --btn-h:#1a7f37;
+  --warn:#9a6700; --warn-bg:#fff8c5; --err:#d1242f; --err-bg:#ffebe9; --sh:0 1px 0 rgba(31,35,40,.04);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0d1117; --bg2:#151b23; --bd:#3d444d; --bd2:#2f353d; --fg:#f0f6fc; --mut:#9198a1;
+  --acc:#4493f8; --acc-bg:#121d2f; --ok:#3fb950; --ok-bg:#12261e; --btn:#238636; --btn-h:#2ea043;
+  --warn:#d29922; --warn-bg:#272115; --err:#f85149; --err-bg:#25171c; }}
+:root[data-theme="dark"]{
+  --bg:#0d1117; --bg2:#151b23; --bd:#3d444d; --bd2:#2f353d; --fg:#f0f6fc; --mut:#9198a1;
+  --acc:#4493f8; --acc-bg:#121d2f; --ok:#3fb950; --ok-bg:#12261e; --btn:#238636; --btn-h:#2ea043;
+  --warn:#d29922; --warn-bg:#272115; --err:#f85149; --err-bg:#25171c; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Malgun Gothic",Helvetica,Arial,sans-serif}
+header{background:var(--bg2);border-bottom:1px solid var(--bd);padding:12px 16px}
+.hwrap{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{font-weight:600;font-size:16px;display:flex;align-items:center;gap:8px}
+.logo svg{flex:none}
+.status{margin-left:auto;font-size:12px;color:var(--mut);display:flex;gap:6px;flex-wrap:wrap}
+.pill{border:1px solid var(--bd);border-radius:2em;padding:0 8px;background:var(--bg)}
+.pill.ok{color:var(--ok);border-color:var(--ok)} .pill.err{color:var(--err);border-color:var(--err)}
+main{max-width:1080px;margin:0 auto;padding:16px}
+.box{border:1px solid var(--bd);border-radius:6px;background:var(--bg);box-shadow:var(--sh);margin-bottom:16px}
+.box-h{background:var(--bg2);border-bottom:1px solid var(--bd);padding:8px 12px;border-radius:6px 6px 0 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.box-h h2{font-size:14px;margin:0;font-weight:600}
+.box-b{padding:12px}
+textarea,input,select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:5px 8px;width:100%}
+textarea:focus,input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:var(--acc)}
+#src{min-height:120px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.btn{font:inherit;font-weight:500;border:1px solid var(--bd);background:var(--bg2);color:var(--fg);border-radius:6px;padding:5px 14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--mut)}
+.btn.pri{background:var(--btn);border-color:rgba(31,35,40,.15);color:#fff}
+.btn.pri:hover{background:var(--btn-h)}
+.btn.sm{padding:2px 10px;font-size:12px}
+.mut{color:var(--mut);font-size:12px}
+.finder{width:auto;flex:1;min-width:140px;max-width:220px}
+.card{border:1px solid var(--bd);border-radius:6px;margin-bottom:16px;background:var(--bg)}
+.card .box-h{justify-content:space-between}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0}
+.form{padding:12px;border-right:1px solid var(--bd2)}
+.f{display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:8px;margin-bottom:6px}
+.f label{font-size:12px;color:var(--mut);font-weight:600}
+.cat3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 8px 118px}
+.chip{font-size:12px;border:1px solid var(--bd);border-radius:2em;padding:1px 10px;background:var(--bg2);cursor:pointer;color:var(--fg)}
+.chip:hover{border-color:var(--acc)} .chip.on{background:var(--acc-bg);border-color:var(--acc);color:var(--acc)}
+.chip b{font-weight:600}
+.conf{font-size:11px;border-radius:2em;padding:0 8px;font-weight:600}
+.conf.h{background:var(--ok-bg);color:var(--ok)} .conf.m{background:var(--warn-bg);color:var(--warn)} .conf.l{background:var(--err-bg);color:var(--err)}
+.out{padding:12px;display:flex;flex-direction:column}
+.out pre{margin:0;flex:1;background:var(--bg2);border:1px solid var(--bd2);border-radius:6px;padding:10px 12px;white-space:pre-wrap;word-break:break-all;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans KR",monospace}
+.warn{font-size:12px;color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:4px 8px;margin:0 0 8px}
+.combo{position:relative}
+.dd{position:absolute;z-index:20;left:0;right:0;top:100%;margin-top:2px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;box-shadow:0 8px 24px rgba(66,74,83,.2);max-height:240px;overflow:auto;display:none}
+.dd div{padding:5px 10px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+.dd div small{color:var(--mut)}
+.dd div:hover,.dd div.act{background:var(--acc-bg)}
+.actsel{display:flex;flex-wrap:wrap;gap:6px}
+.ac{font:inherit;font-size:13px;border:1px solid transparent;border-radius:2em;padding:2px 12px;cursor:pointer;color:#1f2328}
+.ac:hover{border-color:rgba(31,35,40,.4)}
+.ac.on{border-color:#1f2328;font-weight:600;box-shadow:0 0 0 1px #1f2328 inset}
+.ac.on::before{content:'✓ '}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+.toast.on{opacity:1}
+.empty{color:var(--mut);text-align:center;padding:32px 12px}
+@media (max-width:760px){
+  .grid{grid-template-columns:1fr}
+  .form{border-right:0;border-bottom:1px solid var(--bd2)}
+  .f{grid-template-columns:1fr;gap:2px}
+  .chips{margin-left:0}
+  .status{margin-left:0;width:100%}
+  input,select,textarea{font-size:16px}
+}
+</style>
+</head>
+<body>
+<header><div class="hwrap">
+  <div class="logo"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688ZM7.5 7.75a.75.75 0 0 1 1.5 0v2.5a.75.75 0 0 1-1.5 0Zm.75 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>부적합 양식 변환기</div>
+  <div class="status" id="status"></div>
+</div></header>
+<main>
+  <section class="box">
+    <div class="box-h"><h2>메시지 붙여넣기</h2><span class="mut">순서·번호 상관없이 발주명 / 품번 / 불량내용 (여러 건은 빈 줄로 구분)</span></div>
+    <div class="box-b">
+      <textarea id="src" placeholder="1.CC04-157&#10;2.SE-100P44-3&#10;3.탭 누락"></textarea>
+      <div class="row">
+        <button class="btn pri" id="go">변환</button>
+        <button class="btn" id="clear">지우기</button>
+        <input id="finder" class="finder" placeholder="발견자 (자동 저장)">
+        <span class="mut" style="margin-left:auto">Ctrl+Enter로 변환</span>
+      </div>
+    </div>
+  </section>
+  <div class="row" id="allbar" style="display:none;margin:-4px 0 12px">
+    <span class="mut" id="cnt"></span>
+    <button class="btn pri sm" id="copyall" style="margin-left:auto">전체 복사</button>
+  </div>
+  <div id="cards"><div class="empty">메시지를 붙여넣고 변환을 누르세요.</div></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================== 설정 ================== */
+const CONFIG = {
+  SHEET_ID: '1hWRxLYkJfPEBfItSNKv7IFuSOFcLI35b9jCHnKVRBtE',
+  REF:   { gid: '664632288',  range: 'AD1:AF3000' },   // 참조(2026): 분류표(6.1) + 귀책(6.3)
+  PROJ:  { gid: '664632288',  range: 'L1:M5000' },     // 참조(2026): 발주명(L) / TYPE(M)
+  PARTS: { gid: '1577658176', range: 'C1:D20000' },    // 품명/품번 시트: 품명(C) / 품번(D)
+  LEDGER:{ sheet: '수입공정 부적합 (2026)', range: 'K1:S20000' }, // 관리대장: 같은 문구 과거 분류 참고
+  MODEL_URL: 'model.json',
+  UPPER: ['TAP','HOLE','BURR'],         // 대문자로 통일할 소분류
+  ACTIONS: [                              // 조치내용 드롭다운 (구글시트 칩 색상)
+    ['방문조치','#fde79a'], ['업체반출','#f9cdc6'], ['자체처리','#d5ecbf'], ['정상진행','#c7e1f7'],
+    ['재발주','#e5d2f2'], ['입고요청','#ec9a96'], ['현물수정','#e5d2f2'], ['폐기','#e6e8eb']
+  ]
+};
+const MOCK = new URLSearchParams(location.search).has('mock');
+
+/* ================== 유틸 ================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clean = s => String(s ?? '').replace(/\s+/g,' ').trim();
+const key = s => clean(s).toUpperCase().replace(/\s+/g,'');
+const fixSub = s => { const u = clean(s).replace(/\s+/g,''); return CONFIG.UPPER.includes(u.toUpperCase()) ? u.toUpperCase() : clean(s); };
+const store = { get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v);}catch(e){return d;} },
+                set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} } };
+function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),1400); }
+function today(){ const d=new Date(); return d.getFullYear()+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0'); }
+const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const choseong = s => [...String(s)].map(ch => { const c=ch.charCodeAt(0)-0xAC00; return (c>=0&&c<11172)? CHO[Math.floor(c/588)] : ch; }).join('');
+
+/* ================== 구글시트 읽기 (JSONP, 공개 링크) ================== */
+let jsonpN = 0;
+function gviz(src){
+  if (MOCK) {
+    const f = src===CONFIG.REF?'ref_AD_AF':src===CONFIG.PROJ?'proj_L_M':src===CONFIG.PARTS?'parts_C_D':null;
+    return f ? fetch('mock/'+f+'.json').then(r=>r.json()) : Promise.reject(new Error('mock 없음'));
+  }
+  return new Promise((res, rej) => {
+    const cb = '__gv' + (++jsonpN) + '_' + Date.now();
+    const p = new URLSearchParams({ tqx:'out:json;responseHandler:'+cb, headers:'0', range: src.range });
+    if (src.gid) p.set('gid', src.gid); if (src.sheet) p.set('sheet', src.sheet);
+    const s = document.createElement('script');
+    const done = () => { delete window[cb]; s.remove(); clearTimeout(to); };
+    const to = setTimeout(() => { done(); rej(new Error('시간 초과')); }, 20000);
+    window[cb] = resp => { done();
+      if (resp.status === 'error') return rej(new Error((resp.errors||[])[0]?.detailed_message || '시트 오류'));
+      const rows = (resp.table?.rows || []).map(r => (r.c || []).map(c => c ? String(c.f ?? c.v ?? '') : ''));
+      res(rows);
+    };
+    s.onerror = () => { done(); rej(new Error('불러오기 실패')); };
+    s.src = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?` + p.toString();
+    document.head.appendChild(s);
+  });
+}
+
+/* ================== 데이터 파싱 (제목 글자로 위치 찾기 → 행이 늘어나도 따라감) ================== */
+const isTitle = s => /^\s*\d+(\.\d+)+\s/.test(s||'');   // "6.1 ...", "6.3 ..." 같은 구역 제목
+function parseRef(rows){
+  const cats = [], vendors = [];
+  let mode = null, section = 0;
+  for (const r of rows) {
+    const [a='', b='', c=''] = r.map(clean);
+    if (isTitle(a)) { mode = null; continue; }
+    if (a==='대분류' && b==='중분류' && c==='소분류') { section++; mode = section===1 ? 'cat' : 'skip'; continue; } // 첫 분류표(6.1)만 사용, 6.2 제외
+    if (a==='대분류' && b==='세부귀책') { mode = 'ven'; continue; }
+    if (!a && !b && !c) continue;                    // 빈 줄 무시
+    if (mode==='cat' && a && b && c) cats.push([a,b,fixSub(c)]);
+    else if (mode==='ven' && a && b) vendors.push({ big:a, name:b });
+  }
+  const seen = new Set();
+  return { cats: cats.filter(x=>{const k=x.join('>'); if(seen.has(k))return false; seen.add(k); return true;}), vendors };
+}
+function parseProj(rows){
+  const out = []; let on = false;
+  for (const r of rows) {
+    const [a='', b=''] = r.map(clean);
+    if (!on) { if (/발주명|PROJECT/i.test(a) && /^TYPE|타입/i.test(b)) on = true; continue; }
+    if (a && b && !/발주명|PROJECT/i.test(a)) out.push({ name:a, type:b, k:key(a) });
+  }
+  return out;
+}
+function parseParts(rows){
+  const map = new Map();
+  for (const r of rows) {
+    const [nm='', pn=''] = r.map(clean);
+    if (!pn || /^(품번|part ?(no|number)|도번)/i.test(pn)) continue;
+    for (const one of pn.split(/\s*[\/,\n]\s*/)) {
+      const k = key(one); if (k.length < 3) continue;
+      if (!map.has(k)) map.set(k, { pn: one, name: nm });
+    }
+  }
+  return map;
+}
+function parseLedger(rows){
+  // 제목 줄에서 열 위치 찾기: 귀책업체, 대/중/소분류, 불량내용
+  let idx = null; const memo = new Map();
+  for (const r of rows) {
+    const c = r.map(x=>clean(x).replace(/\s/g,''));
+    if (!idx) { const f = re => c.findIndex(x=>re.test(x));
+      const i = { v:f(/^귀책업체/), b:f(/대분류/), m:f(/중분류/), s:f(/소분류/), t:f(/^불량내용/) };
+      if (i.b>=0 && i.m>=0 && i.s>=0 && i.t>=0) idx = i; continue; }
+    const t = key(r[idx.t]); if (!t || !r[idx.b]) continue;
+    const lab = [clean(r[idx.b]), clean(r[idx.m]), fixSub(r[idx.s])].join(' > ');
+    const m = memo.get(t) || {}; m[lab] = (m[lab]||0) + 1; memo.set(t, m);
+  }
+  return memo;
+}
+
+/* ================== 분류 추천 모델 ================== */
+const Model = {
+  m: null,
+  feats(text, vendor){
+    const t = String(text||'').toLowerCase().replace(/\s+/g,' ').trim();
+    const c = new Map(), w = new Map(); const add=(M,k)=>M.set(k,(M.get(k)||0)+1);
+    for (const word of t.split(' ')) { if (!word) continue; const p=' '+word+' ';
+      for (let n=1;n<=3;n++) for (let i=0;i+n<=p.length;i++) add(c,'c:'+p.substr(i,n)); }
+    const toks = t.match(/[^\s,./()]+/g) || [];
+    toks.forEach((x,i)=>{ add(w,'w:'+x); if(i) add(w,'w:'+toks[i-1]+' '+x); });
+    return { c, w, v: vendor ? 'v:'+vendor : null };
+  },
+  scores(text, vendor){
+    const M = this.m, z = Float64Array.from(M.bias), F = this.feats(text, vendor);
+    for (const grp of [F.c, F.w]) {
+      let ss = 0; const vals = [];
+      for (const [k,cnt] of grp) { const e = M.feat[k]; if (!e) continue; const x=(1+Math.log(cnt))*e[0]; vals.push([e,x]); ss+=x*x; }
+      const nrm = Math.sqrt(ss) || 1;   // 학습 어휘에 있는 n-gram 기준 L2 정규화 (sklearn과 동일)
+      for (const [e,x] of vals) for (let i=1;i<e.length;i++) z[e[i][0]] += e[i][1] * x / nrm;
+    }
+    if (F.v && M.feat[F.v]) { const e=M.feat[F.v]; for (let i=1;i<e.length;i++) z[e[i][0]] += e[i][1]; }
+    return z;
+  },
+  predict(text, { vendor, big, allowed, memo } = {}){
+    if (!this.m || !clean(text)) return [];
+    const z = this.scores(text, vendor); const L = this.m.labels;
+    let mx = -Infinity; const keep = [];
+    for (let k=0;k<L.length;k++) {
+      const lab = L[k]; const p = lab.split(' > ');
+      if (big && p[0] !== big) continue;
+      if (allowed && !allowed.has(lab)) continue;
+      keep.push(k); if (z[k] > mx) mx = z[k];
+    }
+    let sum = 0; const out = keep.map(k => { const e = Math.exp(z[k]-mx); sum += e; return { label: L[k], p: e }; });
+    out.forEach(o => o.p /= (sum||1));
+    // 관리대장에 똑같은 문구가 있으면 그 분류를 우선
+    const hist = memo && memo.get(key(text));
+    if (hist) { const tot = Object.values(hist).reduce((a,b)=>a+b,0);
+      for (const [lab,n] of Object.entries(hist)) { if ((big && !lab.startsWith(big+' > ')) || (allowed && !allowed.has(lab))) continue;
+        let o = out.find(x=>x.label===lab); if (!o) { o={label:lab,p:0}; out.push(o); }
+        o.p = 0.5*o.p + 0.5*(n/tot); o.hist = n; } }
+    return out.sort((a,b)=>b.p-a.p).slice(0,3).map(o=>({ ...o, parts:o.label.split(' > ') }));
+  }
+};
+
+/* ================== 상태 ================== */
+const S = { cats:[], vendors:[], proj:[], parts:new Map(), memo:null, allowed:null, tree:{} , items:[] };
+function setStatus(){
+  const p = (ok, label) => `<span class="pill ${ok===true?'ok':ok===false?'err':''}">${label}</span>`;
+  $('#status').innerHTML = [
+    p(S.ld.ref, '분류표 ' + (S.cats.length||'')),
+    p(S.ld.ref, '귀책 ' + (S.vendors.length||'')),
+    p(S.ld.proj, '프로젝트 ' + (S.proj.length||'')),
+    p(S.ld.parts, '품번 ' + (S.parts.size||'')),
+    p(S.ld.model, '추천모델'),
+    MOCK ? p(null,'테스트 데이터') : ''
+  ].join('');
+}
+function buildTree(){
+  S.tree = {}; for (const [a,b,c] of S.cats) ((S.tree[a] ??= {})[b] ??= []).push(c);
+  S.allowed = new Set(S.cats.map(x=>x.join(' > ')));
+  S.vendorBig = Object.fromEntries(S.vendors.map(v=>[v.name, v.big]));
+}
+async function loadAll(){
+  S.ld = { ref:null, proj:null, parts:null, model:null };
+  // 캐시로 먼저 표시 → 최신 데이터로 갱신
+  const cache = store.get('nc_cache', null);
+  if (cache) { Object.assign(S, { cats:cache.cats, vendors:cache.vendors, proj:cache.proj, parts:new Map(cache.parts) }); buildTree(); }
+  setStatus();
+  const jobs = [
+    gviz(CONFIG.REF).then(r=>{ const x=parseRef(r); if(!x.cats.length) throw 0; S.cats=x.cats; S.vendors=x.vendors; buildTree(); S.ld.ref=true; }).catch(()=>S.ld.ref=false),
+    gviz(CONFIG.PROJ).then(r=>{ S.proj=parseProj(r); S.ld.proj=S.proj.length>0; }).catch(()=>S.ld.proj=false),
+    gviz(CONFIG.PARTS).then(r=>{ S.parts=parseParts(r); S.ld.parts=S.parts.size>0; }).catch(()=>S.ld.parts=false),
+    fetch(CONFIG.MODEL_URL).then(r=>r.json()).then(m=>{ Model.m=m; S.ld.model=true; }).catch(()=>S.ld.model=false),
+  ];
+  gviz(CONFIG.LEDGER).then(r=>{ S.memo=parseLedger(r); rerender(); }).catch(()=>{});
+  for (const j of jobs) j.then(setStatus);
+  await Promise.all(jobs);
+  setStatus();
+  store.set('nc_cache', { cats:S.cats, vendors:S.vendors, proj:S.proj, parts:[...S.parts] });
+  if ($('#src').value.trim()) run();
+}
+
+/* ================== 메시지 해석 ================== */
+const NUM = /^\s*(?:\(?\d{1,2}\s*[.)\]]|[①-⑳]|[-*•·▶>])\s*/;
+const QTY = /(\d+)\s*(?:EA|ea|Ea|개|pcs|PCS|SET|set|세트)\b/;
+const KW  = s => /EFEM/i.test(s) ? 'EFEM' : /PROCESS|프로세스/i.test(s) ? 'PROCESS' : '';
+
+function findProject(line){
+  const L = key(line); let best = null;
+  for (const p of S.proj) {
+    if (p.k.length < 3) continue;
+    const i = L.indexOf(p.k); if (i < 0) continue;
+    const nx = L[i + p.k.length] || '';
+    if (/[0-9]/.test(nx) && /[0-9]$/.test(p.k)) continue;  // CC04-15 ↔ CC04-157 혼동 방지
+    if (!best || p.k.length > best.k.length) best = p;
+  }
+  if (best) return { name: best.name, raw: best.name };
+  const m = line.match(/\b([A-Z]{2,5}\d{2,4}-\d{2,4}|ECP\d{3}(?:\s*#\d+)?|MISC-[A-Z0-9 ]+#\d+)\b/i);
+  return m ? { name: m[1].toUpperCase(), raw: m[1], unknown: true } : null;
+}
+function projectType(name, kw){
+  const k = key(name);
+  let cands = S.proj.filter(p => p.k === k || p.k.startsWith(k));
+  if (!cands.length) return { type:'', list:[] };
+  let pick = cands[0];
+  if (kw) pick = cands.find(p => key(p.name+p.type).includes(kw)) || pick;
+  else pick = cands.find(p => p.k === k) || pick;
+  let type = pick.type;
+  if (kw && !type.toUpperCase().includes(kw)) type = type.replace(/\s*(EFEM|PROCESS)\s*$/i,'') + ' ' + kw;
+  const list = [...new Set(cands.map(c=>c.type))];
+  return { type, list };
+}
+function findParts(line){
+  const out = [];
+  const toks = line.match(/[A-Za-z0-9][A-Za-z0-9_\-().#]*[A-Za-z0-9)]/g) || [];
+  for (let t of toks) {
+    const k = key(t);
+    if (S.parts.has(k)) { out.push({ ...S.parts.get(k), raw:t }); continue; }
+    const k2 = k.replace(/[().]+$/,''); if (S.parts.has(k2)) { out.push({ ...S.parts.get(k2), raw:t }); continue; }
+    // 등록 안 된 품번 모양 (영문/숫자 + 하이픈 2개 이상 또는 영문+숫자 혼합 8자 이상)
+    if ((/^[A-Z0-9]+(-[A-Z0-9_]+){1,}$/i.test(t) && /\d/.test(t) && /[A-Z]/i.test(t)) && t.length >= 6) out.push({ pn:t, name:'', raw:t, unknown:true });
+  }
+  return out;
+}
+function parseMessage(text){
+  const lines = text.replace(/\r/g,'').split('\n');
+  const items = []; let cur = null, lastNum = 0;
+  const fresh = (inherit) => ({ proj: inherit?.proj || null, kw: inherit?.kw || '', part: null, qty: '', text: [] , raw:[] });
+  const push = () => { if (cur && (cur.part || cur.text.length || cur.proj)) items.push(cur); };
+  for (let raw of lines) {
+    if (!raw.trim()) { if (cur && (cur.part || cur.text.length)) { push(); cur = null; } continue; }
+    const nm = raw.match(/^\s*\(?(\d{1,2})\s*[.)\]]/); const num = nm ? +nm[1] : 0;
+    let line = raw.replace(NUM,'').trim();
+    if (!cur) cur = fresh(items[items.length-1]);
+    if (num === 1 && lastNum >= 1 && (cur.part || cur.text.length)) { push(); cur = fresh(cur); }
+    if (num) lastNum = num;
+    // 프로젝트
+    const pj = findProject(line);
+    if (pj) {
+      if (cur.proj && cur.proj.name !== pj.name && (cur.part || cur.text.length)) { push(); cur = fresh(); }
+      cur.proj = pj; line = removeOnce(line, pj.raw);
+    }
+    const kw = KW(raw); if (kw) { cur.kw = kw; if (/^\s*(EFEM|PROCESS|프로세스)\s*$/i.test(line)) line = ''; }
+    // 품번
+    for (const pt of findParts(line)) {
+      if (cur.part && (cur.part.pn !== pt.pn)) { push(); cur = fresh(cur); }
+      cur.part = pt; line = removeOnce(line, pt.raw);
+    }
+    // 수량
+    const q = line.match(QTY); if (q) { cur.qty = q[1] + ' EA'; line = line.replace(QTY,''); }
+    line = line.replace(/^[\s,/:|-]+|[\s,/:|-]+$/g,'').trim();
+    if (/^수량\s*[:：]?$/.test(line)) line = '';
+    if (line) cur.text.push(line);
+  }
+  push();
+  return items;
+}
+function removeOnce(s, sub){ const i = s.toUpperCase().indexOf(String(sub).toUpperCase()); return i<0 ? s : (s.slice(0,i) + ' ' + s.slice(i+sub.length)).trim(); }
+
+/* ================== 카드 생성 ================== */
+function makeItem(p){
+  const projName = p.proj?.name || '';
+  const pt = projName ? projectType(projName, p.kw) : { type:'', list:[] };
+  const it = {
+    date: today(), proj: projName, type: pt.type, types: pt.list, projUnknown: !!p.proj?.unknown || (projName && !pt.type),
+    finder: store.get('nc_finder',''), name: p.part?.name || '', pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
+    qty: p.qty || '1 EA', b:'', m:'', s:'', when:'공정', text: p.text.join(' / '), act:'', vendor:'', ps:'',
+    recs: [], manual:false
+  };
+  recommend(it, true);
+  return it;
+}
+function recommend(it, apply){
+  const big = it.vendor ? S.vendorBig[it.vendor] : (it.manualBig ? it.b : null);
+  it.recs = Model.predict(it.text, { vendor: it.vendor || null, big, allowed: S.allowed?.size ? S.allowed : null, memo: S.memo });
+  if (apply && !it.manual && it.recs[0]) [it.b, it.m, it.s] = it.recs[0].parts;
+  else if (big && it.b !== big) { it.b = big; it.m = ''; it.s = ''; if (it.recs[0] && !it.manual) [it.b,it.m,it.s] = it.recs[0].parts; }
+}
+function formatText(it){
+  return [
+    `발견한 날짜 : ${it.date}`,
+    `프로젝트 발주명 : ${it.proj}`,
+    `장비타입 : ${it.type}`,
+    `발견자 : ${it.finder}`,
+    `품명 : ${it.name}`,
+    `품번 : ${it.pn}`,
+    `수량 : ${it.qty}`,
+    `발생기인(대분류) : ${it.b}`,
+    `발생기인(중분류) : ${it.m}`,
+    `발생기인(소분류) : ${it.s}`,
+    `발생시점 : ${it.when}`,
+    `불량내용 : ${it.text}`,
+    `조치내용 : ${it.act}`,
+    `귀책 : ${it.vendor}`,
+    `P.S : ${it.ps}`
+  ].join('\n');
+}
+const opt = (arr, v) => ['<option value=""></option>'].concat(arr.map(x=>`<option${x===v?' selected':''}>${esc(x)}</option>`)).join('');
+function confCls(p){ return p>=0.7?'h':p>=0.4?'m':'l'; }
+function renderCard(it, i){
+  const T = S.tree, mids = it.b && T[it.b] ? Object.keys(T[it.b]) : [], subs = it.b && it.m && T[it.b]?.[it.m] ? T[it.b][it.m] : [];
+  const bigs = Object.keys(T);
+  const warn = [];
+  if (it.projUnknown && it.proj) warn.push('프로젝트 표에 없는 발주명 — 장비타입을 직접 입력하세요');
+  if (!it.proj) warn.push('발주명을 찾지 못했어요');
+  if (it.partUnknown) warn.push('품명/품번 표에 없는 품번 — 품명을 직접 입력하세요');
+  if (!it.pn) warn.push('품번을 찾지 못했어요');
+  const top = it.recs[0];
+  const chips = it.recs.map((r,j)=>`<span class="chip${r.parts.join()=== [it.b,it.m,it.s].join()?' on':''}" data-rec="${j}"><b>${esc(r.parts[1])} › ${esc(r.parts[2])}</b> ${Math.round(r.p*100)}%${r.hist?' · 이력':''}</span>`).join('');
+  const f = (lab, html) => `<div class="f"><label>${lab}</label>${html}</div>`;
+  const inp = (k, ph='') => `<input data-k="${k}" value="${esc(it[k])}" placeholder="${ph}">`;
+  return `<div class="card" data-i="${i}">
+    <div class="box-h"><h2>#${i+1} ${esc(it.pn || it.proj || '')}</h2>
+      <div class="row" style="margin:0">${top?`<span class="conf ${confCls(top.p)}">추천 신뢰도 ${Math.round(top.p*100)}%</span>`:''}
+      <button class="btn pri sm" data-copy>복사</button><button class="btn sm" data-del>삭제</button></div></div>
+    <div class="grid">
+      <div class="form">
+        ${warn.map(w=>`<p class="warn">${esc(w)}</p>`).join('')}
+        ${f('발견한 날짜', inp('date'))}
+        ${f('프로젝트 발주명', inp('proj'))}
+        ${f('장비타입', it.types.length>1 ? `<select data-k="type">${opt([...new Set([it.type,...it.types])], it.type)}</select>` : inp('type'))}
+        ${f('발견자', inp('finder','이름'))}
+        ${f('품명', inp('name'))}
+        ${f('품번', inp('pn'))}
+        ${f('수량', inp('qty'))}
+        ${f('귀책', `<div class="combo"><input data-k="vendor" data-combo value="${esc(it.vendor)}" placeholder="업체명 · 초성 검색 (예: ㅇㅍ)" autocomplete="off"><div class="dd"></div></div>`)}
+        ${f('발생기인', `<div class="cat3"><select data-k="b">${opt(bigs,it.b)}</select><select data-k="m">${opt(mids,it.m)}</select><select data-k="s">${opt(subs,it.s)}</select></div>`)}
+        ${chips?`<div class="chips">${chips}</div>`:''}
+        ${f('발생시점', `<select data-k="when">${['수입','공정','출하'].map(x=>`<option${x===it.when?' selected':''}>${x}</option>`).join('')}</select>`)}
+        ${f('불량내용', inp('text'))}
+        ${f('조치내용', `<div class="actsel">${CONFIG.ACTIONS.map(([n,c])=>`<button type="button" class="ac${it.act===n?' on':''}" data-actv="${esc(n)}" style="background:${c}" aria-pressed="${it.act===n}">${esc(n)}</button>`).join('')}</div>`)}
+        ${f('P.S', inp('ps'))}
+      </div>
+      <div class="out"><pre data-out>${esc(formatText(it))}</pre></div>
+    </div></div>`;
+}
+function rerender(){
+  const box = $('#cards');
+  if (!S.items.length) { box.innerHTML = '<div class="empty">메시지를 붙여넣고 변환을 누르세요.</div>'; $('#allbar').style.display='none'; return; }
+  box.innerHTML = S.items.map(renderCard).join('');
+  $('#allbar').style.display = 'flex'; $('#cnt').textContent = `${S.items.length}건 변환됨`;
+}
+function refreshCard(i){ const el = document.querySelector(`.card[data-i="${i}"]`); const tmp = document.createElement('div'); tmp.innerHTML = renderCard(S.items[i], i); el.replaceWith(tmp.firstElementChild); }
+function refreshOut(i){ document.querySelector(`.card[data-i="${i}"] [data-out]`).textContent = formatText(S.items[i]); }
+
+function run(){
+  const t = $('#src').value; if (!t.trim()) return;
+  S.items = parseMessage(t).map(makeItem); rerender();
+  if (!S.items.length) toast('변환할 내용을 찾지 못했어요');
+}
+
+/* ================== 귀책 검색 (초성 지원) ================== */
+function vendorMatches(q, big){
+  const list = S.vendors.length ? S.vendors : [];
+  const qq = clean(q).toLowerCase(), qc = choseong(qq);
+  const score = v => { const n=v.name.toLowerCase(), c=choseong(n);
+    if (!qq) return 1; if (n.startsWith(qq)) return 4; if (n.includes(qq)) return 3; if (c.startsWith(qc)) return 2; if (c.includes(qc)) return 1; return 0; };
+  return list.map(v=>({v,s:score(v)+(big&&v.big===big?0.5:0)})).filter(x=>x.s>=1).sort((a,b)=>b.s-a.s).slice(0,30).map(x=>x.v);
+}
+function openDD(input){
+  const card = input.closest('.card'), it = S.items[+card.dataset.i], dd = input.nextElementSibling;
+  const list = vendorMatches(input.value, it.b);
+  dd.innerHTML = list.map((v,j)=>`<div data-v="${esc(v.name)}" class="${j===0?'act':''}">${esc(v.name)}<small>${esc(v.big)}</small></div>`).join('') || '<div><small>결과 없음</small></div>';
+  dd.style.display = 'block';
+}
+function pickVendor(i, name){
+  const it = S.items[i]; it.vendor = name; it.manual = false; recommend(it, true); refreshCard(i);
+}
+
+/* ================== 이벤트 ================== */
+$('#go').onclick = run;
+$('#clear').onclick = () => { $('#src').value=''; S.items=[]; rerender(); $('#src').focus(); };
+$('#src').addEventListener('keydown', e => { if (e.key==='Enter' && (e.ctrlKey||e.metaKey)) { e.preventDefault(); run(); } });
+$('#src').addEventListener('paste', () => setTimeout(run, 0));
+$('#finder').value = store.get('nc_finder','');
+$('#finder').addEventListener('input', e => { store.set('nc_finder', e.target.value); S.items.forEach((it,i)=>{ it.finder=e.target.value; refreshOut(i); }); });
+
+async function copy(text){
+  try { await navigator.clipboard.writeText(text); }
+  catch(e){ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+  toast('복사했어요');
+}
+$('#copyall').onclick = () => copy(S.items.map(formatText).join('\n\n'));
+
+const cards = $('#cards');
+cards.addEventListener('click', e => {
+  const card = e.target.closest('.card'); if (!card) return; const i = +card.dataset.i, it = S.items[i];
+  if (e.target.closest('[data-copy]')) return copy(formatText(it));
+  if (e.target.closest('[data-del]')) { S.items.splice(i,1); return rerender(); }
+  const ac = e.target.closest('[data-actv]');
+  if (ac) { it.act = it.act === ac.dataset.actv ? '' : ac.dataset.actv; return refreshCard(i); }   // 다시 누르면 해제
+  const chip = e.target.closest('[data-rec]');
+  if (chip) { [it.b,it.m,it.s] = it.recs[+chip.dataset.rec].parts; it.manual = true; return refreshCard(i); }
+  const dv = e.target.closest('.dd [data-v]'); if (dv) return pickVendor(i, dv.dataset.v);
+});
+cards.addEventListener('input', e => {
+  const el = e.target, card = el.closest('.card'); if (!card || !el.dataset.k) return;
+  const i = +card.dataset.i, it = S.items[i], k = el.dataset.k;
+  it[k] = el.value;
+  if (k==='finder') { store.set('nc_finder', el.value); $('#finder').value = el.value; }
+  if (k==='vendor') { openDD(el); if (S.vendorBig[el.value]) { /* 정확히 일치하면 바로 적용은 blur 시 */ } }
+  if (k==='text') { it.recs = Model.predict(it.text, { vendor: it.vendor||null, big: it.vendor?S.vendorBig[it.vendor]:null, allowed:S.allowed, memo:S.memo }); }
+  refreshOut(i);
+});
+cards.addEventListener('change', e => {
+  const el = e.target, card = el.closest('.card'); if (!card || !el.dataset.k) return;
+  const i = +card.dataset.i, it = S.items[i], k = el.dataset.k;
+  if (k==='b') { it.b = el.value; it.m=''; it.s=''; it.manual = true; it.manualBig = true;
+    if (it.vendor && S.vendorBig[it.vendor] && S.vendorBig[it.vendor] !== it.b) it.vendor = '';
+    const r = Model.predict(it.text, { big: it.b, allowed:S.allowed, memo:S.memo }); if (r[0]) [,it.m,it.s] = r[0].parts; it.recs = r; return refreshCard(i); }
+  if (k==='m') { it.m = el.value; it.s=''; it.manual = true; const r = it.recs.find(x=>x.parts[0]===it.b && x.parts[1]===it.m); if (r) it.s = r.parts[2]; return refreshCard(i); }
+  if (k==='s') { it.s = el.value; it.manual = true; return refreshCard(i); }
+  if (k==='text') { if (!it.manual) recommend(it, true); return refreshCard(i); }
+  if (k==='proj') { const pj = findProject(it.proj); const pt = projectType(pj?.name || it.proj, KW(it.proj) || ''); it.type = pt.type || it.type; it.types = pt.list; it.projUnknown = !pt.type; return refreshCard(i); }
+  if (k==='pn') { const p = S.parts.get(key(it.pn)); if (p) { it.name = p.name; it.partUnknown = false; } return refreshCard(i); }
+  refreshOut(i);
+});
+cards.addEventListener('keydown', e => {
+  const el = e.target; if (!el.hasAttribute('data-combo')) return;
+  const dd = el.nextElementSibling, items = [...dd.querySelectorAll('[data-v]')]; let a = items.findIndex(x=>x.classList.contains('act'));
+  if (e.key==='ArrowDown'||e.key==='ArrowUp') { e.preventDefault(); if(!items.length) return; items[a]?.classList.remove('act'); a = (a + (e.key==='ArrowDown'?1:-1) + items.length) % items.length; items[a].classList.add('act'); items[a].scrollIntoView({block:'nearest'}); }
+  if (e.key==='Enter') { e.preventDefault(); const pick = items[a] || items[0]; if (pick) pickVendor(+el.closest('.card').dataset.i, pick.dataset.v); }
+  if (e.key==='Escape') dd.style.display='none';
+});
+cards.addEventListener('focusin', e => { if (e.target.hasAttribute('data-combo')) openDD(e.target); });
+document.addEventListener('mousedown', e => { if (!e.target.closest('.combo')) document.querySelectorAll('.dd').forEach(d=>d.style.display='none'); });
+cards.addEventListener('focusout', e => {
+  const el = e.target; if (!el.hasAttribute('data-combo')) return;
+  setTimeout(() => { const card = el.closest('.card'); if (!card || card.contains(document.activeElement) && document.activeElement===el) return;
+    const i = +card.dataset.i, it = S.items[i];
+    if (S.vendorBig[it.vendor] && S.vendorBig[it.vendor] !== it.b) pickVendor(i, it.vendor); }, 150);
+});
+
+loadAll();
+</script>
+</body>
+</html>
