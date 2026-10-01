@@ -120,7 +120,7 @@ const CONFIG = {
   //   내용(제목 줄)이 맞는지 확인한 뒤 사용하므로, 연도가 바뀌어 이름이 달라져도 자동으로 찾아감
   REF:   { names: y=>[`참조(${y})`,`참조 (${y})`], gid: '664632288',  range: 'AD1:AF3000' },  // 분류표(6.1) + 귀책(6.3)
   PROJ:  { names: y=>[`참조(${y})`,`참조 (${y})`], gid: '664632288',  range: 'L1:M5000', merge: true }, // 발주명(L) / TYPE(M), 올해+작년 합침
-  PARTS: { gid: '1577658176', range: 'C1:D20000' },                                       // 품명/품번 시트: 품명(C) / 품번(D)
+  PARTS: { gid: '1577658176', range: 'C1:D20000' },                                       // 품명/품번 시트 C~D열 (제목 '품번'/'품명'으로 순서 자동 판단)
   LEDGER:{ names: y=>[`수입공정 부적합 (${y})`,`수입/공정 부적합 (${y})`,`수입공정 부적합(${y})`], gid: '638838738', range: 'K1:S20000', merge: true }, // 관리대장 이력
   MODEL_URL: 'model.json',
   UPPER: ['TAP','HOLE','BURR'],         // 대문자로 통일할 소분류
@@ -224,10 +224,22 @@ function parseProj(rows){
   return out;
 }
 function parseParts(rows){
+  // 제목(품번/품명)을 보고 열 순서 판단 → C/D 순서가 바뀌어도 동작
+  const isPnH = x => /^(품번|도번|part ?(no|number))/i.test(clean(x).replace(/\s/g,''));
+  const isNmH = x => /^(품명|item ?name|name)/i.test(clean(x).replace(/\s/g,''));
+  let pi = -1, ni = -1, start = 0;
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const r = rows[i]; const a = r.findIndex(isPnH), b = r.findIndex(isNmH);
+    if (a >= 0 && b >= 0) { pi = a; ni = b; start = i + 1; break; }
+  }
+  if (pi < 0) {   // 제목이 없으면 내용으로 추정: 숫자+하이픈이 많은 열이 품번
+    const score = j => rows.slice(0,300).filter(r => /\d/.test(r[j]||'') && /-/.test(r[j]||'')).length;
+    [pi, ni] = score(0) >= score(1) ? [0, 1] : [1, 0];
+  }
   const map = new Map();
-  for (const r of rows) {
-    const [nm='', pn=''] = r.map(clean);
-    if (!pn || /^(품번|part ?(no|number)|도번)/i.test(pn)) continue;
+  for (const r of rows.slice(start)) {
+    const pn = clean(r[pi]), nm = clean(r[ni]);
+    if (!pn || isPnH(pn)) continue;
     for (const one of pn.split(/\s*[\/,\n]\s*/)) {
       const k = key(one); if (k.length < 3) continue;
       if (!map.has(k)) map.set(k, { pn: one, name: nm });
