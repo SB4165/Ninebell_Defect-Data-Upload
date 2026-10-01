@@ -550,13 +550,18 @@ function run(){
 
 /* ================== 귀책 검색 (초성 지원) ================== */
 function vendorMatches(q, big){
+  q = splitJamo(q);
   const list = S.vendors.length ? S.vendors : [];
   const qq = clean(q).toLowerCase(), qc = choseong(qq);
   const score = v => { const n=v.name.toLowerCase(), c=choseong(n);
     if (!qq) return 1; if (n.startsWith(qq)) return 4; if (n.includes(qq)) return 3; if (c.startsWith(qc)) return 2; if (c.includes(qc)) return 1; return 0; };
   return list.map(v=>({v,s:score(v)+(big&&v.big===big?0.5:0)})).filter(x=>x.s>=1).sort((a,b)=>b.s-a.s || ko(a.v.name,b.v.name)).slice(0,30).map(x=>x.v);
 }
+// 겹자음(ㄳ, ㅄ 등)을 낱자로 풀기 → 초성 한 글자씩 검색되게
+const JAMO2 = {'ㄳ':'ㄱㅅ','ㄵ':'ㄴㅈ','ㄶ':'ㄴㅎ','ㄺ':'ㄹㄱ','ㄻ':'ㄹㅁ','ㄼ':'ㄹㅂ','ㄽ':'ㄹㅅ','ㄾ':'ㄹㅌ','ㄿ':'ㄹㅍ','ㅀ':'ㄹㅎ','ㅄ':'ㅂㅅ'};
+const splitJamo = s => String(s||'').replace(/[ㄳㄵㄶㄺㄻㄼㄽㄾㄿㅀㅄ]/g, c => JAMO2[c]);
 function nameMatches(q, names){
+  q = splitJamo(q);
   const qq = clean(q).toLowerCase(), qc = choseong(qq);
   const score = n => { const l=n.toLowerCase(), c=choseong(l);
     if (!qq) return 1; if (l.startsWith(qq)) return 4; if (l.includes(qq)) return 3; if (c.startsWith(qc)) return 2; if (c.includes(qc)) return 1; return 0; };
@@ -609,6 +614,10 @@ cards.addEventListener('click', e => {
 cards.addEventListener('input', e => {
   const el = e.target, card = el.closest('.card'); if (!card || !el.dataset.k) return;
   const i = +card.dataset.i, it = S.items[i], k = el.dataset.k;
+  if (el.hasAttribute('data-combo') && /[ㄳㄵㄶㄺㄻㄼㄽㄾㄿㅀㅄ]/.test(el.value)) {
+    // 키보드가 ㄱ+ㅅ을 ㄳ으로 합치면 바로 ㄱㅅ으로 풀고 입력을 확정 (다음 초성이 새로 입력되게)
+    el.value = splitJamo(el.value); el.blur(); el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch(_){}
+  }
   it[k] = el.value;
   if (k==='name') el.classList.toggle('need', !clean(el.value));
   if (k==='finder') { store.set('nc_finder', el.value); openDD(el); }
