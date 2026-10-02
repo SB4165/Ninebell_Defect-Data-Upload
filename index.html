@@ -132,6 +132,8 @@ const CONFIG = {
   BIG_ORDER: ['업체불량','제조불량','기구설계불량','전장설계불량','제어설계불량','기타불량'],   // 대분류 표시 순서
   WHEN: [['수입','#c7e1f7'], ['공정','#fde79a'], ['출하','#d5ecbf']],   // 발생시점 버튼
   EMPTY_COLOR: '#fbdcd7',                 // 비어 있는 칸 표시 색 (업체반출 색보다 30% 연하게)
+  QUICK_NAMES: ['EFEM FRAME','PROCESS FRAME','BUFFER'],   // 품명 빠른 입력 (누르면 품번은 '-')
+  VENDOR_ALIAS: { '브이피시스템':'VP시스템', '한국메카트로닉스':'한국메카' },   // 라벨·메시지 표기 → 귀책 목록 이름
   ACTIONS: [                              // 조치내용 드롭다운 (구글시트 칩 색상)
     ['방문조치','#fde79a'], ['업체반출','#f9cdc6'], ['자체처리','#d5ecbf'], ['정상진행','#c7e1f7'],
     ['재발주','#e5d2f2'], ['입고요청','#ec9a96'], ['현물수정','#e5d2f2'], ['폐기','#e6e8eb']
@@ -431,7 +433,7 @@ function findParts(line){
 function parseMessage(text){
   const lines = text.replace(/\r/g,'').split('\n');
   const items = []; let cur = null, lastNum = 0;
-  const fresh = (inherit) => ({ proj: inherit?.proj || null, kw: inherit?.kw || '', po: inherit?.po || '', part: null, qty: '', text: [] , raw:[] });
+  const fresh = (inherit) => ({ proj: inherit?.proj || null, kw: inherit?.kw || '', po: inherit?.po || '', part: null, qty: '', text: [] , raw:[], vendor: '', vendorRaw: '', nameLines: [] });
   const push = () => { if (cur && (cur.part || cur.text.length || cur.proj)) items.push(cur); };
   for (let raw of lines) {
     if (!raw.trim()) { if (cur && (cur.part || cur.text.length)) { push(); cur = null; } continue; }
@@ -440,6 +442,14 @@ function parseMessage(text){
     if (!cur) cur = fresh(items[items.length-1]);
     if (num === 1 && lastNum >= 1 && (cur.part || cur.text.length)) { push(); cur = fresh(cur); }
     if (num) lastNum = num;
+    // '품명 :' / '업체 :' / '귀책 :' 처럼 이름표가 붙은 줄은 따로 처리 (불량내용에 섞이지 않게)
+    const lab = line.match(/^(품\s*명|part\s*name|업\s*체\s*명?|귀\s*책(?:\s*업\s*체)?|협력사)\s*[:：]\s*(.*)$/i);
+    if (lab) {
+      const val = lab[2].trim();
+      if (/^품|part/i.test(lab[1])) { if (val) cur.nameLines.push(val); }
+      else if (val) { const vn = findVendor(val, true); if (vn) cur.vendor = vn; else cur.vendorRaw = val; }
+      continue;
+    }
     // 프로젝트
     // PO 번호 (예: PO-2026-08-4311) → 장비타입 칸에 그대로 기입, 품번/발주명으로 오인하지 않게 먼저 떼어냄
     const po = line.match(PO_RE);
@@ -461,22 +471,43 @@ function parseMessage(text){
     // 수량
     const q = line.match(QTY); if (q) { cur.qty = String(+q[1]); line = line.replace(QTY,''); }
     line = line.replace(/^[\s,/:|-]+|[\s,/:|-]+$/g,'').trim();
+    const q2 = line.match(/^수\s*량\s*[:：]?\s*(\d+)\s*$/); if (q2) { cur.qty = String(+q2[1]); line = ''; }
     if (/^수량\s*[:：]?$/.test(line)) line = '';
+    // 이름표 없이 업체명만 한 줄로 적힌 경우 (귀책 목록과 정확히 같을 때만)
+    if (line) { const vn = findVendor(line, false); if (vn) { cur.vendor = vn; line = ''; } }
     if (line) cur.text.push(line);
   }
   push();
   return items;
+}
+// 업체명 비교용: (주)·㈜·주식회사·공백·점 등을 빼고 비교
+const vkey = s => clean(s).replace(/\(주\)|㈜|주식회사|\(유\)|유한회사|[\s.·\-]/g,'').toUpperCase();
+function findVendor(v, loose){
+  const k0 = vkey(v); if (!k0) return null;
+  const alias = Object.entries(CONFIG.VENDOR_ALIAS||{}).find(([a]) => vkey(a) === k0);
+  const k = alias ? vkey(alias[1]) : k0;
+  const exact = S.vendors.find(x => vkey(x.name) === k); if (exact || !loose) return exact ? exact.name : null;
+  // '업체 :' 처럼 표시된 줄은 앞부분이 같으면 인정 (예: 해룡엔지니어링(주) → 해룡엔지니어링)
+  const c = S.vendors.filter(x => { const n = vkey(x.name); return n.length >= 2 && (k.startsWith(n) || n.startsWith(k)) && Math.min(n.length,k.length) >= 3; })
+                     .sort((a,b) => vkey(b.name).length - vkey(a.name).length);
+  return c[0]?.name || null;
 }
 function removeOnce(s, sub){ const i = s.toUpperCase().indexOf(String(sub).toUpperCase()); return i<0 ? s : (s.slice(0,i) + ' ' + s.slice(i+sub.length)).trim(); }
 
 /* ================== 카드 생성 ================== */
 function makeItem(p){
   const projName = p.proj?.name || '';
+  // 품명: 시트에서 품번으로 찾은 품명과 같을 때만 인정 → 같은 줄은 불량내용에서 빼고, 다르면 넣지 않고 안내
+  const sheetName = p.part && !p.part.unknown ? clean(p.part.name) : '';
+  const same = v => sheetName && key(v) === key(sheetName);
+  const text = (p.text||[]).filter(l => !same(l));
+  const nameWarn = (p.nameLines||[]).filter(v => !same(v));
   const pt = projName ? projectType(projName, p.kw) : { type:'', list:[] };
   const it = {
     date: today(), proj: projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
     finder: store.get('nc_finder',''), name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
-    qty: p.qty || '1', b:'', m:'', s:'', when:'공정', text: p.text.join(' / '), act:'', vendor:'', ps:'',
+    qty: p.qty || '1', b:'', m:'', s:'', when:'공정', text: text.join(' / '), act:'', vendor: p.vendor || '', ps:'',
+    nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '',
     recs: [], manual:false
   };
   recommend(it, true);
@@ -508,7 +539,7 @@ function formatText(it){
   ].join('\n');
 }
 // 품명 표기: 영문은 대문자, 프레임/FRAME이 들어가면 '-'
-const fmtName = n => { n = clean(n); if (!n) return ''; if (/프레임|FRAME/i.test(n)) return '-'; return n.toUpperCase(); };
+const fmtName = n => { n = clean(n); if (!n) return ''; if (CONFIG.QUICK_NAMES.includes(n.toUpperCase())) return n.toUpperCase(); if (/프레임|FRAME/i.test(n)) return '-'; return n.toUpperCase(); };
 // 수량: 칸에는 숫자만, 결과에는 'EA'를 자동으로 붙임
 const qtyText = q => { q = String(q||'').replace(/\D/g,''); return q ? q + ' EA' : ''; };
 const ko = (a,b) => String(a).localeCompare(String(b),'ko');
@@ -526,6 +557,10 @@ function renderCard(it, i){
   if (!it.proj && !it.po) warn.push('발주명을 찾지 못했어요');
   if (it.partUnknown) warn.push('품명/품번 표에 없는 품번 — 품명을 직접 입력하세요');
   if (!it.pn) warn.push('품번을 찾지 못했어요');
+  if (it.nameWarn) warn.push(it.partUnknown || !it.pn
+    ? `메시지의 품명 '${it.nameWarn}'은(는) 품번이 시트에 없어 확인할 수 없어서 넣지 않았어요`
+    : `메시지의 품명 '${it.nameWarn}'은(는) 이 품번의 시트 품명과 달라서 넣지 않았어요`);
+  if (it.vendorWarn && !it.vendor) warn.push(`메시지의 업체 '${it.vendorWarn}'을(를) 귀책 목록에서 찾지 못했어요`);
   }
   const top = it.recs[0];
   const chips = it.recs.map((r,j)=>`<span class="chip${r.parts.join()=== [it.b,it.m,it.s].join()?' on':''}" data-rec="${j}"><b>${esc(r.parts[1])} › ${esc(r.parts[2])}</b> ${Math.round(r.p*100)}%${r.hist?' · 이력':''}</span>`).join('');
@@ -545,6 +580,7 @@ function renderCard(it, i){
         ${f('장비타입', it.types.length>1 ? `<select data-k="type">${opt([it.type,...it.types].filter(Boolean), it.type)}</select>` : inp('type'))}
         ${f('발견자', `<div class="combo"><input data-k="finder" data-combo="finder" value="${esc(it.finder)}" placeholder="입력 필요 · 초성 검색 (예: ㄱㅅㅂ)" autocomplete="off" class="${nd(it.finder)}"><div class="dd"></div></div>`)}
         ${f('품명', `<input data-k="name" value="${esc(it.name)}" placeholder="입력 필요" class="${nd(it.name)}">`)}
+        <div class="chips">${CONFIG.QUICK_NAMES.map(n=>`<span class="chip${fmtName(it.name)===n?' on':''}" data-qname="${esc(n)}">${esc(n)}</span>`).join('')}</div>
         ${f('품번', inp('pn'))}
         ${f('수량', `<div class="qty"><input data-k="qty" value="${esc(it.qty)}" inputmode="numeric" pattern="[0-9]*" placeholder="입력 필요" class="${nd(it.qty)}"><span>EA</span></div>`)}
         ${f('귀책', `<div class="combo"><input data-k="vendor" data-combo="vendor" value="${esc(it.vendor)}" placeholder="입력 필요 · 업체명 초성 검색 (예: ㅇㅍ)" autocomplete="off" class="${nd(it.vendor)}"><div class="dd"></div></div>`)}
@@ -632,6 +668,8 @@ cards.addEventListener('click', e => {
   if (e.target.closest('[data-del]')) { S.items.splice(i,1); return rerender(); }
   const wh = e.target.closest('[data-when]');
   if (wh) { it.when = wh.dataset.when; return refreshCard(i); }
+  const qn = e.target.closest('[data-qname]');
+  if (qn) { it.name = qn.dataset.qname; it.pn = '-'; it.partUnknown = false; return refreshCard(i); }   // 품명 빠른 입력 → 품번 '-'
   const ac = e.target.closest('[data-actv]');
   if (ac) { it.act = it.act === ac.dataset.actv ? '' : ac.dataset.actv; return refreshCard(i); }   // 다시 누르면 해제
   const chip = e.target.closest('[data-rec]');
@@ -648,6 +686,7 @@ cards.addEventListener('input', e => {
   if (k==='qty' && /\D/.test(el.value)) el.value = el.value.replace(/\D/g,'');   // 숫자만
   it[k] = el.value;
   if (k!=='ps' && el.tagName==='INPUT') el.classList.toggle('need', !clean(el.value));
+  if (k==='name') card.querySelectorAll('[data-qname]').forEach(c => c.classList.toggle('on', fmtName(el.value) === c.dataset.qname));
   if (k==='finder') { store.set('nc_finder', el.value); openDD(el); }
   if (k==='vendor') { openDD(el); if (S.vendorBig[el.value]) { /* 정확히 일치하면 바로 적용은 blur 시 */ } }
   if (k==='text') { it.recs = Model.predict(it.text, { vendor: it.vendor||null, big: it.vendor?S.vendorBig[it.vendor]:null, allowed:S.allowed, memo:S.memo }); }
