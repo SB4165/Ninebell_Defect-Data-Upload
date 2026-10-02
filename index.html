@@ -7,7 +7,7 @@
 <title>부적합 양식 변환기</title>
 <style>
 :root{
-  --empty:#f9cdc6; --bg:#ffffff; --bg2:#f6f8fa; --bd:#d0d7de; --bd2:#d8dee4; --fg:#1f2328; --mut:#59636e;
+  --empty:#fbdcd7; --bg:#ffffff; --bg2:#f6f8fa; --bd:#d0d7de; --bd2:#d8dee4; --fg:#1f2328; --mut:#59636e;
   --acc:#0969da; --acc-bg:#ddf4ff; --ok:#1a7f37; --ok-bg:#dafbe1; --btn:#1f883d; --btn-h:#1a7f37;
   --warn:#9a6700; --warn-bg:#fff8c5; --err:#d1242f; --err-bg:#ffebe9; --sh:0 1px 0 rgba(31,35,40,.04);
 }
@@ -61,7 +61,7 @@ textarea:focus,input:focus,select:focus{outline:2px solid var(--acc);outline-off
 .actsel{display:flex;flex-wrap:wrap;gap:6px}
 .csel{color:#1f2328}
 .csel option{color:#1f2328}
-input.need,select.need{background:var(--empty);border-color:#e0a49a;color:#1f2328}
+input.need,select.need{background:var(--empty);border-color:#e9bfb8;color:#1f2328}
 .actsel.need{border:2px dashed #d1242f;border-radius:6px;padding:6px;background:#fff}
 .actsel.need::after{content:'선택 필요';font-size:12px;color:#d1242f;align-self:center;margin-left:4px}
 input.need::placeholder{color:#8a4a40}
@@ -131,7 +131,7 @@ const CONFIG = {
   },
   BIG_ORDER: ['업체불량','제조불량','기구설계불량','전장설계불량','제어설계불량','기타불량'],   // 대분류 표시 순서
   WHEN: [['수입','#c7e1f7'], ['공정','#fde79a'], ['출하','#d5ecbf']],   // 발생시점 버튼
-  EMPTY_COLOR: '#f9cdc6',                 // 비어 있는 품명 칸 표시 (업체반출 색)
+  EMPTY_COLOR: '#fbdcd7',                 // 비어 있는 칸 표시 색 (업체반출 색보다 30% 연하게)
   ACTIONS: [                              // 조치내용 드롭다운 (구글시트 칩 색상)
     ['방문조치','#fde79a'], ['업체반출','#f9cdc6'], ['자체처리','#d5ecbf'], ['정상진행','#c7e1f7'],
     ['재발주','#e5d2f2'], ['입고요청','#ec9a96'], ['현물수정','#e5d2f2'], ['폐기','#e6e8eb']
@@ -529,7 +529,7 @@ function renderCard(it, i){
         ${f('프로젝트 발주명', inp('proj'))}
         ${f('장비타입', it.types.length>1 ? `<select data-k="type">${opt([it.type,...it.types].filter(Boolean), it.type)}</select>` : inp('type'))}
         ${f('발견자', `<div class="combo"><input data-k="finder" data-combo="finder" value="${esc(it.finder)}" placeholder="입력 필요 · 초성 검색 (예: ㄱㅅㅂ)" autocomplete="off" class="${nd(it.finder)}"><div class="dd"></div></div>`)}
-        ${f('품명', `<input data-k="name" value="${esc(it.name)}" placeholder="품명 입력 필요" class="${nd(it.name)}">`)}
+        ${f('품명', `<input data-k="name" value="${esc(it.name)}" placeholder="입력 필요" class="${nd(it.name)}">`)}
         ${f('품번', inp('pn'))}
         ${f('수량', `<div class="qty"><input data-k="qty" value="${esc(it.qty)}" inputmode="numeric" pattern="[0-9]*" placeholder="입력 필요" class="${nd(it.qty)}"><span>EA</span></div>`)}
         ${f('귀책', `<div class="combo"><input data-k="vendor" data-combo="vendor" value="${esc(it.vendor)}" placeholder="입력 필요 · 업체명 초성 검색 (예: ㅇㅍ)" autocomplete="off" class="${nd(it.vendor)}"><div class="dd"></div></div>`)}
@@ -567,7 +567,8 @@ function vendorMatches(q, big){
   const qq = clean(q).toLowerCase(), qc = choseong(qq);
   const score = v => { const n=v.name.toLowerCase(), c=choseong(n);
     if (!qq) return 1; if (n.startsWith(qq)) return 4; if (n.includes(qq)) return 3; if (c.startsWith(qc)) return 2; if (c.includes(qc)) return 1; return 0; };
-  return list.map(v=>({v,s:score(v)+(big&&v.big===big?0.5:0)})).filter(x=>x.s>=1).sort((a,b)=>b.s-a.s || ko(a.v.name,b.v.name)).slice(0,30).map(x=>x.v);
+  // 발생기인 대분류가 정해져 있으면 그 대분류의 귀책만 보여줌
+  return list.filter(v=>!big || v.big===big).map(v=>({v,s:score(v)})).filter(x=>x.s>=1).sort((a,b)=>b.s-a.s || ko(a.v.name,b.v.name)).slice(0,30).map(x=>x.v);
 }
 // 겹자음(ㄳ, ㅄ 등)을 낱자로 풀기 → 초성 한 글자씩 검색되게
 const JAMO2 = {'ㄳ':'ㄱㅅ','ㄵ':'ㄴㅈ','ㄶ':'ㄴㅎ','ㄺ':'ㄹㄱ','ㄻ':'ㄹㅁ','ㄼ':'ㄹㅂ','ㄽ':'ㄹㅅ','ㄾ':'ㄹㅌ','ㄿ':'ㄹㅍ','ㅀ':'ㄹㅎ','ㅄ':'ㅂㅅ'};
