@@ -121,7 +121,7 @@ const CONFIG = {
   //   내용(제목 줄)이 맞는지 확인한 뒤 사용하므로, 연도가 바뀌어 이름이 달라져도 자동으로 찾아감
   REF:   { names: y=>[`참조(${y})`,`참조 (${y})`], gid: '664632288',  range: 'AD1:AF3000' },  // 분류표(6.1) + 귀책(6.3)
   PROJ:  { names: y=>[`참조(${y})`,`참조 (${y})`], gid: '664632288',  range: 'L1:M5000', merge: true }, // 발주명(L) / TYPE(M), 올해+작년 합침
-  PARTS: { gid: '1577658176', range: 'A1:Z20000' },                                       // 품명/품번 시트 (제목 '품번'/'품명'/'발견자' 글자로 열 위치 자동 판단)
+  PARTS: { gid: '1577658176', range: 'A1:Z40' },   // 품명/품번 시트: 위 40행에서 제목('품번'/'품명'/'발견자') 열을 찾은 뒤 그 열만 끝까지(행 수 제한 없이) 읽음
   LEDGER:{ names: y=>[`수입공정 부적합 (${y})`,`수입/공정 부적합 (${y})`,`수입공정 부적합(${y})`], gid: '638838738', range: 'K1:S20000', merge: true }, // 관리대장 이력
   MODEL_URL: 'model.json',
   UPPER: ['TAP','HOLE','BURR'],         // 대문자로 통일할 소분류
@@ -154,6 +154,20 @@ const choseong = s => [...String(s)].map(ch => { const c=ch.charCodeAt(0)-0xAC00
 
 /* ================== 구글시트 읽기 (JSONP, 공개 링크) ================== */
 let jsonpN = 0;
+// 품명/품번 시트: ① 위쪽 몇 행에서 제목 열 위치 찾기 → ② 그 열만 행 수 제한 없이 끝까지 읽기
+async function loadParts(){
+  if (MOCK) { const r = await gviz(CONFIG.PARTS); return { parts:parseParts(r), finders:parseFinders(r) }; }
+  const [head] = await loadSheet(CONFIG.PARTS, r=>r, r=>r.length>0);
+  const isH = x => /^(품번|도번|part ?(no|number)|품명|item ?name|발견자)$/i.test(clean(x).replace(/\s/g,''));
+  let cols = [];
+  for (const r of head) { const c = r.map((x,j)=>isH(x)?j:-1).filter(j=>j>=0); if (c.length >= 2) { cols = c; break; } }
+  if (!cols.length) cols = [0, 25];
+  const L = j => String.fromCharCode(65 + j);
+  const rows = await gviz({ gid: CONFIG.PARTS.gid, range: `${L(Math.min(...cols))}:${L(Math.max(...cols))}` });
+  const parts = parseParts(rows);
+  if (!parts.size) throw new Error('품번 없음');
+  return { parts, finders: parseFinders(rows) };
+}
 // 여러 후보 시트를 순서대로 시도 → 내용 검사(ok)를 통과한 결과만 사용
 async function loadSheet(cfg, parse, ok){
   const Y = new Date().getFullYear(), seen = new Set(), cands = [];
@@ -356,7 +370,7 @@ async function loadAll(){
   const jobs = [
     loadSheet(CONFIG.REF, parseRef, x=>x.cats.length>0).then(([x])=>{ S.cats=x.cats; S.vendors=x.vendors; buildTree(); S.ld.ref=true; }).catch(()=>S.ld.ref=false),
     loadSheet(CONFIG.PROJ, parseProj, x=>x.length>0).then(list=>{ const m=new Map(); list.flat().forEach(p=>{ if(!m.has(p.k)) m.set(p.k,p); }); S.proj=[...m.values()]; S.ld.proj=true; }).catch(()=>S.ld.proj=false),
-    loadSheet(CONFIG.PARTS, r=>({ parts:parseParts(r), finders:parseFinders(r) }), x=>x.parts.size>0).then(([x])=>{ S.parts=x.parts; S.finders=x.finders; S.ld.parts=true; }).catch(()=>S.ld.parts=false),
+    loadParts().then(x=>{ S.parts=x.parts; S.finders=x.finders; S.ld.parts=true; }).catch(()=>S.ld.parts=false),
     fetch('model_report.json?t=' + Date.now()).then(r=>r.ok?r.json():null).then(r=>{ S.report=r; }).catch(()=>{}),
     fetch(CONFIG.MODEL_URL).then(r=>r.json()).then(m=>{ Model.m=m; S.ld.model=true; }).catch(()=>S.ld.model=false),
   ];
@@ -366,7 +380,8 @@ async function loadAll(){
   for (const j of jobs) j.then(setStatus);
   await Promise.all(jobs);
   setStatus();
-  store.set('nc_cache', { cats:S.cats, vendors:S.vendors, proj:S.proj, parts:[...S.parts], finders:S.finders });
+  // 품번(수만 개)은 저장 공간 한도를 넘을 수 있어 캐시하지 않음 → 매번 시트에서 새로 읽음
+  store.set('nc_cache', { cats:S.cats, vendors:S.vendors, proj:S.proj, finders:S.finders });
   if ($('#src').value.trim()) run(); else { S.items = []; rerender(); }
 }
 
