@@ -224,6 +224,14 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const clean = s => String(s ?? '').replace(/\s+/g,' ').trim();
 const key = s => clean(s).toUpperCase().replace(/\s+/g,'');
 const fixSub = s => { const u = clean(s).replace(/\s+/g,''); return CONFIG.UPPER.includes(u.toUpperCase()) ? u.toUpperCase() : clean(s); };
+// 휴대폰·태블릿 판단 (화면 폭이 아니라 기기 정보로 판단 → PC에서 창을 줄여도 PC로 처리)
+//   아이패드는 PC(맥)처럼 보이는 경우가 있어 '맥 + 터치 화면'도 태블릿으로 봄
+const IS_MOBILE = (() => { try {
+  if (navigator.userAgentData && navigator.userAgentData.mobile) return true;
+  const ua = navigator.userAgent || '';
+  if (/Android|iPhone|iPad|iPod|Mobile|Mobi|Tablet|Silk|Kindle|PlayBook|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return true;
+  return /Mac/.test(navigator.platform || '') && navigator.maxTouchPoints > 1;
+} catch(e) { return false; } })();
 const store = { get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v);}catch(e){return d;} },
                 set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} } };
 function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),1400); }
@@ -625,7 +633,7 @@ function makeItem(p){
   const pt = projName ? projectType(projName, p.kw) : { type:'', list:[] };
   const it = {
     date: today(), proj: p.po ? 'SPARES_ACM' : projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
-    finder: p.finder || store.get('nc_finder',''), pub: store.get('nc_pub',''), name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
+    finder: p.finder || store.get('nc_finder',''), pub: IS_MOBILE ? store.get('nc_pub','') : '', name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
     qty: p.qty || '1', b:'', m:'', s:'', when:'', text: text.join(' / '), act:'', vendor: p.vendor || '', ps:'',
     nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '', vendorAsk: !!p.vendorAsk && !p.vendor,
     recs: [], manual:false
@@ -796,7 +804,7 @@ cards.addEventListener('click', e => {
   const wh = e.target.closest('[data-when]');
   if (wh) { it.when = wh.dataset.when; return refreshCard(i); }
   const pb = e.target.closest('[data-pub]');
-  if (pb) { it.pub = pb.dataset.pub; store.set('nc_pub', it.pub); S.items.forEach((x,j)=>{ if (j!==i && !x.pub) x.pub = it.pub; }); return rerender(); }   // 발행자: 관리대장 전용
+  if (pb) { it.pub = pb.dataset.pub; if (IS_MOBILE) store.set('nc_pub', it.pub); return refreshCard(i); }   // 발행자: 관리대장 전용 (휴대폰·태블릿만 기억)
   const qn = e.target.closest('[data-qname]');
   if (qn) { it.name = qn.dataset.qname; it.pn = '-'; it.partUnknown = false; return refreshCard(i); }   // 품명 빠른 입력 → 품번 '-'
   const ac = e.target.closest('[data-actv]');
@@ -1092,6 +1100,7 @@ $('#delSynced').onclick = async () => {
   try { const r = await api('deleteSynced', {}, true); if (r) { toast('지웠어요'); loadLedger(); } } catch(err) { msg('오류', esc(err.message)); }
 };
 
+if (!IS_MOBILE) try { localStorage.removeItem('nc_pub'); } catch(e) {}   // PC(공용 PC 포함)는 발행자를 기억하지 않음 → 예전에 기억해 둔 값도 지움
 rerender();
 loadAll();
 showTab(store.get('nc_tab','conv'));
