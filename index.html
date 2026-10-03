@@ -519,8 +519,21 @@ function findParts(line){
   }
   return out;
 }
+// 메시지 이름표 (제조팀 6항목 + 예전 형식의 '수량 :', '업체 :' 등)
+const LABEL = '프로젝트\\s*(?:발주\\s*)?명?|발\\s*주\\s*명|품\\s*명|품\\s*번|part\\s*name|수\\s*량|불\\s*량\\s*내\\s*용|업\\s*체\\s*명?|귀\\s*책(?:\\s*업\\s*체)?|협력사|요\\s*청\\s*자|발\\s*견\\s*자';
+const LAB_RE = new RegExp('^(' + LABEL + ')\\s*[:：]\\s*(.*)$', 'i');
+const ASK_RE = /^귀책?\s*확인\s*요청$|^확인\s*요청$|^확인\s*필요$/;   // 제조팀 '귀책 : 확인요청' → 귀책 비워 둠
+// 붙여넣은 글 정리: 보이지 않는 글자·특수 공백·여러 콜론 모양 통일, 한 줄에 여러 항목이 붙어 오면 나눔
+function normMsg(text){
+  let t = String(text || '').replace(/\r/g,'').replace(/[\u200B-\u200D\u2060\uFEFF]/g,'').replace(/[\u00A0\u3000\t]/g,' ').replace(/[﹕∶꞉]/g,':');
+  // '… 4. 불량내용 : 탭 누락 5. 귀책 : 우신테크 6. 요청자 : 곽승범' 처럼 한 줄로 온 경우 → 번호+이름표 앞에서 줄 나눔
+  t = t.replace(new RegExp('([^\\n])[ ,/|]+(?=\\(?\\d{1,2}\\s*[.)\\]]\\s*(?:' + LABEL + ')\\s*[:：])', 'gi'), '$1\n');
+  // '탭 누락 / 귀책 : 우신테크 / 요청자 : 곽승범' 처럼 '/'로 이어 붙은 이름표 → 줄 나눔
+  t = t.replace(new RegExp('\\s*[/|]\\s*(?=(?:' + LABEL + ')\\s*[:：])', 'gi'), '\n');
+  return t;
+}
 function parseMessage(text){
-  const lines = text.replace(/\r/g,'').split('\n');
+  const lines = normMsg(text).split('\n');
   const items = []; let cur = null, lastNum = 0;
   const fresh = (inherit) => ({ proj: inherit?.proj || null, kw: inherit?.kw || '', po: inherit?.po || '', part: null, qty: '', text: [] , raw:[], vendor: '', vendorRaw: '', nameLines: [] });
   const push = () => { if (cur && (cur.part || cur.text.length || cur.proj)) items.push(cur); };
@@ -535,7 +548,7 @@ function parseMessage(text){
     if (num) lastNum = num;
     // '품명 :' / '업체 :' / '귀책 :' 처럼 이름표가 붙은 줄은 따로 처리 (불량내용에 섞이지 않게)
     // '항목 : 값' 처럼 이름표가 붙은 줄 (제조팀 메시지 6항목 포함, 순서 무관)
-    const lab = line.match(/^(프로젝트\s*(?:발주\s*)?명?|발\s*주\s*명|품\s*명|품\s*번|part\s*name|수\s*량|불량\s*내용|업\s*체\s*명?|귀\s*책(?:\s*업\s*체)?|협력사|요\s*청\s*자|발\s*견\s*자)\s*[:：]\s*(.*)$/i);
+    const lab = line.match(LAB_RE);
     if (lab) {
       const k = lab[1].replace(/\s/g,''), val = lab[2].trim();
       if (!val) continue;                                  // '3. 수량 : ' 처럼 비어 있으면 건너뜀
@@ -553,6 +566,7 @@ function parseMessage(text){
       else if (k === '수량') { const q = val.match(/\d+/); if (q) cur.qty = String(+q[0]); }
       else if (k === '불량내용') cur.text.push(val);
       else if (/^(요청자|발견자)$/.test(k)) cur.finder = val;
+      else if (ASK_RE.test(val.replace(/\s/g,'') ) || ASK_RE.test(val)) { cur.vendor = ''; cur.vendorAsk = true; }   // 귀책 확인요청 → 귀책 비워 둠
       else { const vn = findVendor(val, true); if (vn) cur.vendor = vn; else cur.vendorRaw = val; }
       continue;
     }
@@ -613,7 +627,7 @@ function makeItem(p){
     date: today(), proj: p.po ? 'SPARES_ACM' : projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
     finder: p.finder || store.get('nc_finder',''), pub: store.get('nc_pub',''), name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
     qty: p.qty || '1', b:'', m:'', s:'', when:'공정', text: text.join(' / '), act:'', vendor: p.vendor || '', ps:'',
-    nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '',
+    nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '', vendorAsk: !!p.vendorAsk && !p.vendor,
     recs: [], manual:false
   };
   recommend(it, true);
@@ -666,6 +680,7 @@ function renderCard(it, i){
   if (it.nameWarn) warn.push(it.partUnknown || !it.pn
     ? `메시지의 품명 '${it.nameWarn}'은(는) 품번이 시트에 없어 확인할 수 없어서 넣지 않았어요`
     : `메시지의 품명 '${it.nameWarn}'은(는) 이 품번의 시트 품명과 달라서 넣지 않았어요`);
+  if (it.vendorAsk && !it.vendor) warn.push('제조팀이 귀책 확인을 요청했어요. 귀책을 확인해서 골라 주세요');
   if (it.vendorWarn && !it.vendor) warn.push(`메시지의 업체 '${it.vendorWarn}'을(를) 귀책 목록에서 찾지 못했어요`);
   }
   const top = it.recs[0];
