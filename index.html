@@ -138,7 +138,7 @@ table.led td.log b{color:var(--fg);font-weight:600}
   <section class="box">
     <div class="box-h"><h2>메시지 붙여넣기</h2><span class="mut">순서·번호 상관없이 발주명 / 품번 / 불량내용 (여러 건은 빈 줄로 구분)</span></div>
     <div class="box-b">
-      <textarea id="src" placeholder="&lt;입력예시&gt;&#10;1. 프로젝트명 : CC04-157&#10;2. 품번 : SE-100P44-3&#10;3. 수량 : 1 EA&#10;4. 불량내용 : 탭 누락&#10;5. 귀책 : 우신테크&#10;6. 요청자 : 곽승범&#10;&#10;※ 부적합처리방 문구 복사 붙여넣기 (순서 상관없음)"></textarea>
+      <textarea id="src" placeholder="&lt;입력예시&gt;&#10;1. 프로젝트명 : CC04-157&#10;2. 품번 : SE-100P44-3&#10;3. 수량 : 1 EA&#10;4. 불량내용 : 탭 누락&#10;5. 귀책 : 우신테크&#10;6. 요청자 : 홍길동&#10;&#10;※ 부적합처리방 문구 복사 붙여넣기 (순서 상관없음)"></textarea>
       <div class="row">
         <button class="btn pri" id="go">변환</button>
         <button class="btn" id="clear">지우기</button>
@@ -626,7 +626,7 @@ function makeItem(p){
   const it = {
     date: today(), proj: p.po ? 'SPARES_ACM' : projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
     finder: p.finder || store.get('nc_finder',''), pub: store.get('nc_pub',''), name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
-    qty: p.qty || '1', b:'', m:'', s:'', when:'공정', text: text.join(' / '), act:'', vendor: p.vendor || '', ps:'',
+    qty: p.qty || '1', b:'', m:'', s:'', when:'', text: text.join(' / '), act:'', vendor: p.vendor || '', ps:'',
     nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '', vendorAsk: !!p.vendorAsk && !p.vendor,
     recs: [], manual:false
   };
@@ -708,7 +708,7 @@ function renderCard(it, i){
         ${f('발생기인', (() => { const bc = bigColor(it.b), st = bc ? ` class="csel" style="background:${bc}"` : '';
           return `<div class="cat3"><select data-k="b"${it.b?st:' class="need"'}>${opt(bigs,it.b,bigColor,CONFIG.BIG_ORDER)}</select><select data-k="m"${it.m?st:' class="need"'}>${opt(mids,it.m,bc?()=>bc:null)}</select><select data-k="s"${it.s?st:' class="need"'}>${opt(subs,it.s,bc?()=>bc:null)}</select></div>`; })())}
         ${chips?`<div class="chips">${chips}</div>`:''}
-        ${f('발생시점', `<div class="actsel">${CONFIG.WHEN.map(([n,c])=>`<button type="button" class="ac${it.when===n?' on':''}" data-when="${n}" style="background:${c}" aria-pressed="${it.when===n}">${n}</button>`).join('')}</div>`)}
+        ${f('발생시점', `<div class="actsel ${nd(it.when)}">${CONFIG.WHEN.map(([n,c])=>`<button type="button" class="ac${it.when===n?' on':''}" data-when="${n}" style="background:${c}" aria-pressed="${it.when===n}">${n}</button>`).join('')}</div>`)}
         ${f('불량내용', inp('text'))}
         ${f('조치내용', `<div class="actsel ${nd(it.act)}">${CONFIG.ACTIONS.map(([n,c])=>`<button type="button" class="ac${it.act===n?' on':''}" data-actv="${esc(n)}" style="background:${c}" aria-pressed="${it.act===n}">${esc(n)}</button>`).join('')}</div>`)}
         ${f('P.S', inp('ps'))}
