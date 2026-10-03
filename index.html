@@ -786,7 +786,12 @@ async function copy(text){
 const cards = $('#cards');
 cards.addEventListener('click', e => {
   const card = e.target.closest('.card'); if (!card) return; const i = +card.dataset.i, it = S.items[i];
-  if (e.target.closest('[data-copy]')) { copy(formatText(it)); return askUpload(it); }
+  if (e.target.closest('[data-copy]')) {
+    // P.S 를 뺀 모든 칸이 채워져야 복사·업로드 가능
+    const miss = missingOf(it);
+    if (miss.length) { refreshCard(i); return msg('비어 있는 칸이 있어요', `아래 칸을 채운 뒤 [복사]를 눌러 주세요.<br><b>${miss.map(esc).join(', ')}</b><br><span class="mut">(P.S만 비워 둘 수 있어요)</span>`); }
+    copy(formatText(it)); return askUpload(it);
+  }
   if (e.target.closest('[data-del]')) { S.items.splice(i,1); return rerender(); }
   const wh = e.target.closest('[data-when]');
   if (wh) { it.when = wh.dataset.when; return refreshCard(i); }
@@ -916,7 +921,12 @@ async function fpOf(f){
 }
 
 // [복사] 후: 관리대장 탭에 올릴지 묻기
+// 필수 칸 (P.S 제외 전부 + 발행자)
+const REQUIRED = [['date','발견한 날짜'],['proj','프로젝트 발주명'],['type','장비타입'],['finder','발견자'],['name','품명'],['pn','품번'],['qty','수량'],
+  ['b','발생기인(대분류)'],['m','발생기인(중분류)'],['s','발생기인(소분류)'],['when','발생시점'],['text','불량내용'],['act','조치내용'],['vendor','귀책'],['pub','발행자']];
+const missingOf = it => REQUIRED.filter(([k]) => !clean(k === 'name' ? fmtName(it.name) : k === 'qty' ? String(it.qty||'').replace(/\D/g,'') : it[k])).map(([, n]) => n);
 async function askUpload(it){
+  if (missingOf(it).length) return;   // 안전장치: 빈 칸이 있으면 업로드하지 않음
   if (!CONFIG.API_URL && !MOCK) return;
   await new Promise(r => setTimeout(r, 350));
   if (!clean(it.pub)) {
