@@ -246,6 +246,7 @@ const CONFIG = {
   EMPTY_COLOR: '#fbdcd7',                 // 비어 있는 칸 표시 색 (업체반출 색보다 30% 연하게)
   API_URL: 'https://script.google.com/macros/s/AKfycbwFnFwdLHLfrhgS1nkhN-d-N5eFV7PAMd97HaLlQaZzXlVqfCNCuvg5Ef5z01vQDoyb/exec',   // 관리대장 업로드용 Apps Script 웹앱 (부적합 관리대장 업로드 프로젝트)
   QUICK_NAMES: ['EFEM FRAME','PROCESS FRAME','BUFFER'],   // 품명 빠른 입력 (누르면 품번은 '-')
+  REQ_EXCLUDE: ['곽승범'],               // 개선요청 작성자 목록에서 뺄 이름
   VENDOR_ALIAS: { '브이피시스템':'VP시스템', '한국메카트로닉스':'한국메카' },   // 라벨·메시지 표기 → 귀책 목록 이름
   ACTIONS: [                              // 조치내용 드롭다운 (구글시트 칩 색상)
     ['방문조치','#fde79a'], ['업체반출','#f9cdc6'], ['자체처리','#d5ecbf'], ['정상진행','#c7e1f7'],
@@ -661,7 +662,7 @@ function removeOnce(s, sub){ const i = s.toUpperCase().indexOf(String(sub).toUpp
 
 /* ================== 카드 생성 ================== */
 // 불량내용에 Proposal / SCS 관련 말이 있으면 품명을 PROPOSAL / SCS 로 (둘 다 있으면 먼저 나온 것)
-const KW_NAMES = [['PROPOSAL', /proposal|프로포[절잘즐]/i], ['SCS', /(^|[^A-Za-z])SCS(?![A-Za-z])|에스씨에스/i]];
+const KW_NAMES = [['PROPOSAL', /proposal|프로포[절잘즐셜]/i], ['SCS', /(^|[^A-Za-z])SCS(?![A-Za-z])|에스씨에스/i]];
 function kwName(text){
   let best = null;
   for (const [n, re] of KW_NAMES) { const m = String(text||'').match(re); if (m && (!best || m.index < best.i)) best = { n, i: m.index }; }
@@ -784,7 +785,14 @@ function rerender(){
   const blank = S.items.length===1 && S.items[0].blank;
   $('#allbar').style.display = blank ? 'none' : 'flex'; $('#cnt').textContent = `${S.items.length}건 변환됨`;
 }
-function refreshCard(i){ const el = document.querySelector(`.card[data-i="${i}"]`); const tmp = document.createElement('div'); tmp.innerHTML = renderCard(S.items[i], i); el.replaceWith(tmp.firstElementChild); }
+// 칸을 고친 직후 바로 [복사] 등을 누르면, 칸을 벗어나며 카드가 다시 그려져 클릭이 사라지는 문제 방지
+//   → 마우스·손가락이 눌린 동안에는 다시 그리기를 미뤘다가 클릭이 끝난 뒤 처리
+let ptrDown = false; const pendingCards = new Set();
+document.addEventListener('pointerdown', () => { ptrDown = true; }, true);
+document.addEventListener('pointerup', () => setTimeout(() => { ptrDown = false; const l = [...pendingCards]; pendingCards.clear(); l.forEach(drawCard); }, 0), true);
+document.addEventListener('pointercancel', () => { ptrDown = false; }, true);
+function drawCard(i){ const el = document.querySelector(`.card[data-i="${i}"]`); if (!el || !S.items[i]) return; const tmp = document.createElement('div'); tmp.innerHTML = renderCard(S.items[i], i); el.replaceWith(tmp.firstElementChild); }
+function refreshCard(i){ if (ptrDown) { pendingCards.add(i); return; } drawCard(i); }
 function refreshOut(i){ document.querySelector(`.card[data-i="${i}"] [data-out]`).textContent = formatText(S.items[i]); }
 
 function run(){
@@ -878,6 +886,11 @@ cards.addEventListener('input', e => {
   if (k==='name') card.querySelectorAll('[data-qname]').forEach(c => c.classList.toggle('on', fmtName(el.value) === c.dataset.qname));
   if (k==='finder') { openDD(el); }
   if (k==='vendor') { openDD(el); if (S.vendorBig[el.value]) { /* 정확히 일치하면 바로 적용은 blur 시 */ } }
+  if (k==='text') {   // Proposal·SCS 자동 품명: 입력하는 동안 바로 반영 (칸을 벗어나지 않아도)
+    const before = it.name; syncKwName(it);
+    if (it.name !== before) { const ni = card.querySelector('[data-k="name"]'); if (ni) { ni.value = it.name; ni.classList.toggle('need', !clean(it.name)); }
+      card.querySelectorAll('[data-qname]').forEach(c => c.classList.toggle('on', fmtName(it.name) === c.dataset.qname)); }
+  }
   if (k==='text') { it.recs = Model.predict(it.text, { vendor: it.vendor||null, big: it.vendor?S.vendorBig[it.vendor]:null, allowed:S.allowed, memo:S.memo }); }
   refreshOut(i);
 });
@@ -1161,9 +1174,10 @@ $('#delSynced').onclick = async () => {
 
 /* ================== 개선요청 탭 ================== */
 const REQ_STATUS = ['검토', '개발중', '적용완료', '적용불가'];
+const reqAuthors = () => (S.pubs || []).filter(n => !(CONFIG.REQ_EXCLUDE || []).includes(n));
 S.rq = []; S.rqAuthor = '';
 function renderReqForm(){
-  const list = S.pubs.length ? S.pubs : [];
+  const list = reqAuthors();
   $('#rqAuthor').className = 'pubsel actsel ' + (S.rqAuthor ? '' : 'need');
   $('#rqAuthor').innerHTML = list.map(n => `<button type="button" class="ac${S.rqAuthor===n?' on':''}" data-rqa="${esc(n)}" style="background:#eef1f4">${esc(n)}</button>`).join('') || '<span class="mut">발행자 명단 불러오는 중…</span>';
   $('#rqText').classList.toggle('need', !clean($('#rqText').value));
@@ -1196,7 +1210,7 @@ $('#rqAdd').onclick = async () => {
   catch(e) { msg('등록하지 못했어요', esc(e.message)); }
 };
 function reqForm(title, x){
-  const body = `<div class="efrm"><label>작성자</label><select data-f="author">${[...new Set([x.author, ...S.pubs])].filter(Boolean).map(n => `<option${n===x.author?' selected':''}>${esc(n)}</option>`).join('')}</select>
+  const body = `<div class="efrm"><label>작성자</label><select data-f="author">${[...new Set([x.author, ...reqAuthors()])].filter(Boolean).map(n => `<option${n===x.author?' selected':''}>${esc(n)}</option>`).join('')}</select>
     <label>요청사항</label><textarea data-f="text" rows="5">${esc(x.text)}</textarea></div>`;
   modal.onOpen = m => { modal.lastForm = m; };
   return modal({ title, body, wide:true, buttons:[{label:'취소', value:false},{label:'저장', value:true, cls:'pri'}] }).then(ok => { const m = modal.lastForm; modal.onOpen = null; modal.lastForm = null;
