@@ -72,6 +72,34 @@ input.need::placeholder{color:#8a4a40}
 .ac:hover{border-color:rgba(31,35,40,.4)}
 .ac.on{border-color:#1f2328;font-weight:600;box-shadow:0 0 0 1px #1f2328 inset}
 .ac.on::before{content:'✓ '}
+/* 탭 */
+.tabs{max-width:1080px;margin:0 auto;padding:12px 16px 0;display:flex;gap:4px;border-bottom:1px solid var(--bd)}
+.tabs button{font:inherit;font-size:14px;font-weight:600;background:none;border:1px solid transparent;border-bottom:0;border-radius:6px 6px 0 0;padding:8px 14px;color:var(--mut);cursor:pointer;margin-bottom:-1px}
+.tabs button.on{background:var(--bg);border-color:var(--bd);color:var(--fg)}
+.tabs .badge{display:inline-block;min-width:18px;padding:0 6px;margin-left:4px;border-radius:2em;background:var(--acc-bg);color:var(--acc);font-size:11px}
+/* 모달 */
+.modal{position:fixed;inset:0;background:rgba(31,35,40,.45);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}
+.modal .mbox{background:var(--bg);border:1px solid var(--bd);border-radius:10px;box-shadow:0 12px 32px rgba(31,35,40,.25);width:100%;max-width:420px;padding:18px}
+.modal .mbox.wide{max-width:760px;max-height:90vh;overflow:auto}
+.modal h3{margin:0 0 8px;font-size:16px}
+.modal p{margin:0 0 12px;color:var(--mut)}
+.modal .mbtn{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.modal .mbtn .btn{min-width:80px;padding:7px 16px}
+/* 관리대장 탭 */
+.lbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.lbar input[type=date]{width:auto}
+.btn.danger{color:var(--err);border-color:#f1aeb5}
+.twrap{overflow-x:auto;border:1px solid var(--bd);border-radius:6px;background:var(--bg)}
+table.led{border-collapse:collapse;font-size:12.5px;min-width:1500px;width:100%}
+table.led th,table.led td{border-bottom:1px solid var(--bd2);padding:6px 8px;text-align:left;vertical-align:top;white-space:nowrap}
+table.led th{background:var(--bg2);position:sticky;top:0;font-weight:600;color:var(--mut)}
+table.led td.wrap{white-space:normal;min-width:180px;max-width:320px}
+table.led tr.done td{color:var(--mut)}
+.st{font-size:11px;font-weight:600;border-radius:2em;padding:1px 8px}
+.st.wait{background:var(--warn-bg);color:var(--warn)} .st.done{background:var(--ok-bg);color:var(--ok)} .st.dirty{background:var(--acc-bg);color:var(--acc)}
+.efrm{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;align-items:center}
+.efrm label{font-size:12px;color:var(--mut);font-weight:600}
+@media (max-width:760px){ .efrm{grid-template-columns:1fr} .tabs{padding:8px 8px 0} .tabs button{padding:8px 10px;font-size:13px} }
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
 .toast.on{opacity:1}
 .empty{color:var(--mut);text-align:center;padding:32px 12px}
@@ -94,7 +122,11 @@ input.need::placeholder{color:#8a4a40}
   <div class="logo"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688ZM7.5 7.75a.75.75 0 0 1 1.5 0v2.5a.75.75 0 0 1-1.5 0Zm.75 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>부적합 양식 변환기</div>
   <div class="status" id="status"></div>
 </div></header>
-<main>
+<nav class="tabs" id="tabs">
+  <button type="button" data-tab="conv" class="on">부적합 양식 변환기</button>
+  <button type="button" data-tab="ledger">부적합 관리대장 업로드<span class="badge" id="ledBadge" style="display:none"></span></button>
+</nav>
+<main id="tab-conv">
   <section class="box">
     <div class="box-h"><h2>메시지 붙여넣기</h2><span class="mut">순서·번호 상관없이 발주명 / 품번 / 불량내용 (여러 건은 빈 줄로 구분)</span></div>
     <div class="box-b">
@@ -110,6 +142,26 @@ input.need::placeholder{color:#8a4a40}
     <span class="mut" id="cnt"></span>
   </div>
   <div id="cards"></div>
+</main>
+<main id="tab-ledger" style="display:none">
+  <section class="box">
+    <div class="box-h"><h2>부적합 관리대장 업로드</h2><span class="mut" id="ledInfo">불러오는 중…</span>
+      <button class="btn sm" id="ledRefresh" style="margin-left:auto">새로고침</button></div>
+    <div class="box-b">
+      <div class="lbar">
+        <span class="mut">발생일</span>
+        <input type="date" id="syncFrom"> <span class="mut">~</span> <input type="date" id="syncTo">
+        <button class="btn pri sm" id="syncRange">조건부 동기화</button>
+        <button class="btn pri sm" id="syncAll">일괄 동기화</button>
+        <button class="btn sm danger" id="delSynced" style="margin-left:auto">동기화 완료건 일괄삭제</button>
+      </div>
+      <div class="twrap"><table class="led"><thead><tr>
+        <th>No.</th><th>상태</th><th>발생일</th><th>발주 프로젝트명</th><th>TYPE / PO No.</th><th>품명</th><th>품번</th><th>수량</th><th>귀책업체</th>
+        <th>대분류</th><th>중분류</th><th>소분류</th><th>구분</th><th>발견자</th><th>담당자(발행자)</th><th>불량내용</th><th>조치사항</th><th>비고</th><th>관리</th>
+      </tr></thead><tbody id="ledBody"></tbody></table></div>
+      <p class="mut" style="margin:8px 0 0">· 수정·삭제·동기화는 비밀번호가 필요해요 (한 번 입력하면 창을 닫을 때까지 유지) · 10초마다 자동 새로고침</p>
+    </div>
+  </section>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -132,6 +184,7 @@ const CONFIG = {
   BIG_ORDER: ['업체불량','제조불량','기구설계불량','전장설계불량','제어설계불량','기타불량'],   // 대분류 표시 순서
   WHEN: [['수입','#c7e1f7'], ['공정','#fde79a'], ['출하','#d5ecbf']],   // 발생시점 버튼
   EMPTY_COLOR: '#fbdcd7',                 // 비어 있는 칸 표시 색 (업체반출 색보다 30% 연하게)
+  API_URL: 'https://script.google.com/macros/s/AKfycbwFnFwdLHLfrhgS1nkhN-d-N5eFV7PAMd97HaLlQaZzXlVqfCNCuvg5Ef5z01vQDoyb/exec',   // 관리대장 업로드용 Apps Script 웹앱 (부적합 관리대장 업로드 프로젝트)
   QUICK_NAMES: ['EFEM FRAME','PROCESS FRAME','BUFFER'],   // 품명 빠른 입력 (누르면 품번은 '-')
   VENDOR_ALIAS: { '브이피시스템':'VP시스템', '한국메카트로닉스':'한국메카' },   // 라벨·메시지 표기 → 귀책 목록 이름
   ACTIONS: [                              // 조치내용 드롭다운 (구글시트 칩 색상)
@@ -158,9 +211,9 @@ const choseong = s => [...String(s)].map(ch => { const c=ch.charCodeAt(0)-0xAC00
 let jsonpN = 0;
 // 품명/품번 시트: ① 위쪽 몇 행에서 제목 열 위치 찾기 → ② 그 열만 행 수 제한 없이 끝까지 읽기
 async function loadParts(){
-  if (MOCK) { const r = await gviz(CONFIG.PARTS); return { parts:parseParts(r), finders:parseFinders(r) }; }
+  if (MOCK) { const r = await gviz(CONFIG.PARTS); return { parts:parseParts(r), finders:parseFinders(r), pubs:parsePubs(r) }; }
   const [head] = await loadSheet(CONFIG.PARTS, r=>r, r=>r.length>0);
-  const isH = x => /^(품번|도번|part ?(no|number)|품명|item ?name|발견자)$/i.test(clean(x).replace(/\s/g,''));
+  const isH = x => /^(품번|도번|part ?(no|number)|품명|item ?name|발견자|발행자.*)$/i.test(clean(x).replace(/\s/g,''));
   let cols = [];
   for (const r of head) { const c = r.map((x,j)=>isH(x)?j:-1).filter(j=>j>=0); if (c.length >= 2) { cols = c; break; } }
   if (!cols.length) cols = [0, 25];
@@ -168,7 +221,7 @@ async function loadParts(){
   const rows = await gviz({ gid: CONFIG.PARTS.gid, range: `${L(Math.min(...cols))}:${L(Math.max(...cols))}` });
   const parts = parseParts(rows);
   if (!parts.size) throw new Error('품번 없음');
-  return { parts, finders: parseFinders(rows) };
+  return { parts, finders: parseFinders(rows), pubs: parsePubs(rows) };
 }
 // 여러 후보 시트를 순서대로 시도 → 내용 검사(ok)를 통과한 결과만 사용
 async function loadSheet(cfg, parse, ok){
@@ -277,6 +330,18 @@ function parseFinders(rows){
   for (const r of rows.slice(start)) { const n = clean(r[ci]); if (n && n !== '발견자' && !seen.has(n)) { seen.add(n); out.push(n); } }
   return out.sort(ko);
 }
+// 발행자(담당자) 명단: 제목이 '발행자'로 시작하는 열
+function parsePubs(rows){
+  let ci = -1, start = 0;
+  for (let i = 0; i < Math.min(rows.length, 30) && ci < 0; i++) {
+    const j = rows[i].findIndex(x => /^발행자/.test(clean(x).replace(/\s/g,'')));
+    if (j >= 0) { ci = j; start = i + 1; }
+  }
+  if (ci < 0) return [];
+  const seen = new Set(), out = [];
+  for (const r of rows.slice(start)) { const n = clean(r[ci]); if (n && !/^발행자/.test(n) && !seen.has(n)) { seen.add(n); out.push(n); } }
+  return out;
+}
 function parseLedger(rows){
   // 제목 줄에서 열 위치 찾기: 귀책업체, 대/중/소분류, 불량내용
   let idx = null; const memo = new Map();
@@ -338,7 +403,7 @@ const Model = {
 };
 
 /* ================== 상태 ================== */
-const S = { cats:[], vendors:[], proj:[], parts:new Map(), finders:[], memo:null, allowed:null, tree:{} , items:[] };
+const S = { cats:[], vendors:[], proj:[], parts:new Map(), finders:[], pubs:[], led:[], memo:null, allowed:null, tree:{} , items:[] };
 // 모델 성적표 (매주 재학습 때 model_report.json 자동 갱신)
 function reportPill(){
   const r = S.report; if (!r || r.recent_top1 == null) return '';
@@ -367,12 +432,12 @@ async function loadAll(){
   S.ld = { ref:null, proj:null, parts:null, model:null };
   // 캐시로 먼저 표시 → 최신 데이터로 갱신
   const cache = store.get('nc_cache', null);
-  if (cache) { Object.assign(S, { cats:cache.cats, vendors:cache.vendors, proj:cache.proj, parts:new Map(cache.parts), finders:cache.finders||[] }); buildTree(); }
+  if (cache) { Object.assign(S, { cats:cache.cats, vendors:cache.vendors, proj:cache.proj, parts:new Map(cache.parts), finders:cache.finders||[], pubs:cache.pubs||[] }); buildTree(); }
   setStatus();
   const jobs = [
     loadSheet(CONFIG.REF, parseRef, x=>x.cats.length>0).then(([x])=>{ S.cats=x.cats; S.vendors=x.vendors; buildTree(); S.ld.ref=true; }).catch(()=>S.ld.ref=false),
     loadSheet(CONFIG.PROJ, parseProj, x=>x.length>0).then(list=>{ const m=new Map(); list.flat().forEach(p=>{ if(!m.has(p.k)) m.set(p.k,p); }); S.proj=[...m.values()]; S.ld.proj=true; }).catch(()=>S.ld.proj=false),
-    loadParts().then(x=>{ S.parts=x.parts; S.finders=x.finders; S.ld.parts=true; }).catch(()=>S.ld.parts=false),
+    loadParts().then(x=>{ S.parts=x.parts; S.finders=x.finders; S.pubs=x.pubs||[]; S.ld.parts=true; }).catch(()=>S.ld.parts=false),
     fetch('model_report.json?t=' + Date.now()).then(r=>r.ok?r.json():null).then(r=>{ S.report=r; }).catch(()=>{}),
     fetch(CONFIG.MODEL_URL).then(r=>r.json()).then(m=>{ Model.m=m; S.ld.model=true; }).catch(()=>S.ld.model=false),
   ];
@@ -383,7 +448,7 @@ async function loadAll(){
   await Promise.all(jobs);
   setStatus();
   // 품번(수만 개)은 저장 공간 한도를 넘을 수 있어 캐시하지 않음 → 매번 시트에서 새로 읽음
-  store.set('nc_cache', { cats:S.cats, vendors:S.vendors, proj:S.proj, finders:S.finders });
+  store.set('nc_cache', { cats:S.cats, vendors:S.vendors, proj:S.proj, finders:S.finders, pubs:S.pubs });
   if ($('#src').value.trim()) run(); else { S.items = []; rerender(); }
 }
 
@@ -504,8 +569,8 @@ function makeItem(p){
   const nameWarn = (p.nameLines||[]).filter(v => !same(v));
   const pt = projName ? projectType(projName, p.kw) : { type:'', list:[] };
   const it = {
-    date: today(), proj: projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
-    finder: store.get('nc_finder',''), name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
+    date: today(), proj: p.po ? 'SPARES_ACM' : projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
+    finder: store.get('nc_finder',''), pub: store.get('nc_pub',''), name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
     qty: p.qty || '1', b:'', m:'', s:'', when:'공정', text: text.join(' / '), act:'', vendor: p.vendor || '', ps:'',
     nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '',
     recs: [], manual:false
@@ -591,6 +656,7 @@ function renderCard(it, i){
         ${f('불량내용', inp('text'))}
         ${f('조치내용', `<div class="actsel ${nd(it.act)}">${CONFIG.ACTIONS.map(([n,c])=>`<button type="button" class="ac${it.act===n?' on':''}" data-actv="${esc(n)}" style="background:${c}" aria-pressed="${it.act===n}">${esc(n)}</button>`).join('')}</div>`)}
         ${f('P.S', inp('ps'))}
+        ${f('발행자', `<div class="actsel ${nd(it.pub)}">${(S.pubs.length?S.pubs:[]).map(n=>`<button type="button" class="ac${it.pub===n?' on':''}" data-pub="${esc(n)}" style="background:#eef1f4">${esc(n)}</button>`).join('') || '<span class="mut">명단 불러오는 중…</span>'}</div>`)}
       </div>
       <div class="out"><pre data-out>${esc(formatText(it))}</pre><button class="btn pri mcopy" data-copy>복사</button></div>
     </div></div>`;
@@ -664,10 +730,12 @@ async function copy(text){
 const cards = $('#cards');
 cards.addEventListener('click', e => {
   const card = e.target.closest('.card'); if (!card) return; const i = +card.dataset.i, it = S.items[i];
-  if (e.target.closest('[data-copy]')) return copy(formatText(it));
+  if (e.target.closest('[data-copy]')) { copy(formatText(it)); return askUpload(it); }
   if (e.target.closest('[data-del]')) { S.items.splice(i,1); return rerender(); }
   const wh = e.target.closest('[data-when]');
   if (wh) { it.when = wh.dataset.when; return refreshCard(i); }
+  const pb = e.target.closest('[data-pub]');
+  if (pb) { it.pub = pb.dataset.pub; store.set('nc_pub', it.pub); S.items.forEach((x,j)=>{ if (j!==i && !x.pub) x.pub = it.pub; }); return rerender(); }   // 발행자: 관리대장 전용
   const qn = e.target.closest('[data-qname]');
   if (qn) { it.name = qn.dataset.qname; it.pn = '-'; it.partUnknown = false; return refreshCard(i); }   // 품명 빠른 입력 → 품번 '-'
   const ac = e.target.closest('[data-actv]');
@@ -722,8 +790,182 @@ cards.addEventListener('focusout', e => {
     if (S.vendorBig[it.vendor] && S.vendorBig[it.vendor] !== it.b) pickVendor(i, it.vendor); }, 150);
 });
 
+/* ================== 모달 ================== */
+function modal({ title='', body='', buttons=[{label:'확인', value:true, cls:'pri'}], input=null, wide=false }){
+  return new Promise(res => {
+    const m = document.createElement('div'); m.className = 'modal';
+    m.innerHTML = `<div class="mbox ${wide?'wide':''}"><h3>${esc(title)}</h3>${body?`<div class="mb">${body}</div>`:''}
+      ${input?`<input type="${input.type||'text'}" class="minp" placeholder="${esc(input.placeholder||'')}" autocomplete="off" style="margin-top:4px">`:''}
+      <div class="mbtn">${buttons.map((b,i)=>`<button class="btn ${b.cls||''}" data-mi="${i}">${esc(b.label)}</button>`).join('')}</div></div>`;
+    const done = v => { m.remove(); document.removeEventListener('keydown', key); res(v); };
+    const key = e => { if (e.key==='Escape') done(null); if (e.key==='Enter' && input) { e.preventDefault(); done(m.querySelector('.minp').value); } };
+    m.addEventListener('click', e => { const b = e.target.closest('[data-mi]'); if (b) { const bt = buttons[+b.dataset.mi]; done(input && bt.value===true ? m.querySelector('.minp').value : bt.value); } else if (e.target===m) done(null); });
+    document.addEventListener('keydown', key);
+    document.body.appendChild(m);
+    (m.querySelector('.minp') || m.querySelector('.btn.pri') || m.querySelector('.btn'))?.focus();
+    m.getForm = () => m;
+    if (modal.onOpen) modal.onOpen(m);
+  });
+}
+const msg = (title, body='') => modal({ title, body: body?`<p>${body}</p>`:'' });
+
+/* ================== 관리대장 서버(Apps Script) 연결 ================== */
+const MOCK_DB = { seq:0, items:[], fps:[] };
+async function api(action, data={}, needPw=false){
+  if (needPw) {
+    let pw = sessionStorage.getItem('nc_pw');
+    for (let tries = 0; tries < 3; tries++) {
+      if (!pw) { pw = await modal({ title:'비밀번호', body:'<p>수정·삭제·동기화는 비밀번호가 필요해요.</p>', input:{type:'password', placeholder:'비밀번호'}, buttons:[{label:'취소', value:null},{label:'확인', value:true, cls:'pri'}] }); if (!pw) return null; }
+      const r = await call(action, { ...data, pw });
+      if (r && r.error === 'badpw') { sessionStorage.removeItem('nc_pw'); pw = null; toast('비밀번호가 맞지 않아요'); continue; }
+      try { sessionStorage.setItem('nc_pw', pw); } catch(e){}
+      return r;
+    }
+    return null;
+  }
+  return call(action, data);
+}
+async function call(action, data){
+  if (MOCK) return mockApi(action, data);   // ?mock=1 테스트 때는 가짜 서버 사용
+  if (!CONFIG.API_URL) throw new Error('관리대장 서버 주소가 아직 설정되지 않았어요');
+  const r = await fetch(CONFIG.API_URL, { method:'POST', body: JSON.stringify({ action, ...data }) });
+  const j = await r.json();
+  if (!j.ok && j.error !== 'badpw') throw new Error(j.error || '서버 오류');
+  return j;
+}
+function mockApi(a, d){   // 테스트(?mock=1)용 가짜 서버
+  const st = MOCK_DB;
+  if (a!=='list' && a!=='check' && a!=='add' && d.pw !== 'vnawlf') return { ok:false, error:'badpw' };
+  if (a==='list') return { ok:true, items: JSON.parse(JSON.stringify(st.items)) };
+  if (a==='check') return { ok:true, exists: st.fps.includes(d.fp) };
+  if (a==='add') { if (st.fps.includes(d.fp)) return { ok:true, dup:true }; st.seq++; const it={ id:'WEB-TEST-'+String(st.seq).padStart(4,'0'), seq:st.seq, fp:d.fp, f:{...d.f}, synced:false, dirty:false }; st.items.push(it); st.fps.push(d.fp); return { ok:true, item:it }; }
+  if (a==='update') { const it = st.items.find(x=>x.id===d.id); it.f = {...d.f}; if (!st.fps.includes(d.fp)) st.fps.push(d.fp); if (it.synced) it.dirty = true; return { ok:true }; }
+  if (a==='delete') { st.items = st.items.filter(x=>!d.ids.includes(x.id)); return { ok:true }; }
+  if (a==='deleteSynced') { st.items = st.items.filter(x=>!(x.synced && !x.dirty)); return { ok:true }; }
+  if (a==='sync') { const ymd=s=>String(s||'').replace(/\D/g,''); const f=ymd(d.from), t=ymd(d.to); let added=0, updated=0;
+    st.items.filter(x=>(!x.synced||x.dirty) && (!f||ymd(x.f.date)>=f) && (!t||ymd(x.f.date)<=t)).forEach(x=>{ x.synced ? updated++ : added++; x.synced=true; x.dirty=false; });
+    return { ok:true, added, updated, sheet:'수입공정 부적합 (테스트)' }; }
+  return { ok:false, error:'unknown' };
+}
+
+// 관리대장에 넣을 값 / 같은 건 판단용 지문 (양식 15줄 + 발행자까지 같으면 같은 건)
+const toF = it => ({ date: it.date, proj: it.proj, type: it.type, name: fmtName(it.name), pn: it.pn, qty: String(it.qty||'').replace(/\D/g,''),
+  vendor: it.vendor, b: it.b, m: it.m, s: it.s, when: it.when, finder: it.finder, pub: it.pub, text: it.text, act: it.act, ps: it.ps });
+async function fpOf(f){
+  const t = ['date','proj','type','finder','name','pn','qty','b','m','s','when','text','act','vendor','ps','pub'].map(k => clean(f[k])).join('␞');
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+  return [...new Uint8Array(h)].slice(0, 12).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// [복사] 후: 관리대장 탭에 올릴지 묻기
+async function askUpload(it){
+  if (!CONFIG.API_URL && !MOCK) return;
+  await new Promise(r => setTimeout(r, 350));
+  if (!clean(it.pub)) {
+    await msg('발행자를 선택해 주세요', '관리대장 탭에 올리려면 카드 맨 아래 발행자를 먼저 선택해야 해요. 선택한 뒤 [복사]를 다시 눌러주세요.');
+    return;
+  }
+  try {
+    const f = toF(it), fp = await fpOf(f);
+    const c = await api('check', { fp });
+    if (c.exists) return msg('업로드 완료된 건입니다', '같은 내용(발행자 포함)이 이미 관리대장 탭에 올라가 있어요.');
+    const ok = await modal({ title:'관리대장 탭에 업로드 하시겠습니까?', body:`<p>${esc(f.pn || f.proj)} · ${esc(f.text)}</p>`, buttons:[{label:'아니오', value:false},{label:'예', value:true, cls:'pri'}] });
+    if (!ok) return;
+    const r = await api('add', { fp, f });
+    if (r.dup) return msg('업로드 완료된 건입니다', '같은 내용(발행자 포함)이 이미 관리대장 탭에 올라가 있어요.');
+    toast('관리대장 탭에 올렸어요'); loadLedger();
+  } catch(e) { msg('관리대장 연결 오류', esc(e.message)); }
+}
+
+/* ================== 관리대장 탭 ================== */
+let ledTimer = null, ledBusy = false;
+function showTab(t){
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $('#tab-conv').style.display = t === 'conv' ? '' : 'none';
+  $('#tab-ledger').style.display = t === 'ledger' ? '' : 'none';
+  store.set('nc_tab', t);
+  clearInterval(ledTimer);
+  if (t === 'ledger') { loadLedger(); ledTimer = setInterval(() => { if (!document.hidden && !document.querySelector('.modal')) loadLedger(); }, 10000); }
+}
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+async function loadLedger(){
+  if (ledBusy) return; ledBusy = true;
+  try {
+    const r = await api('list');
+    S.led = (r.items || []).sort((a,b) => a.seq - b.seq);
+    renderLedger();
+    const t = new Date(); $('#ledInfo').textContent = `${S.led.length}건 · 대기 ${S.led.filter(x=>!x.synced).length} · 수정됨 ${S.led.filter(x=>x.dirty).length} · 동기화 완료 ${S.led.filter(x=>x.synced&&!x.dirty).length} · ${t.toTimeString().slice(0,8)} 갱신`;
+  } catch(e) { $('#ledInfo').textContent = '연결 안 됨: ' + e.message; }
+  finally { ledBusy = false; }
+}
+function renderLedger(){
+  const pend = S.led.filter(x => !x.synced || x.dirty).length, b = $('#ledBadge');
+  b.style.display = pend ? '' : 'none'; b.textContent = pend;
+  if (!S.led.length) { $('#ledBody').innerHTML = '<tr><td colspan="19" class="mut" style="padding:24px">아직 올라온 건이 없어요. 변환기 탭에서 [복사] → [예]를 누르면 여기에 쌓여요.</td></tr>'; return; }
+  $('#ledBody').innerHTML = S.led.map((x, i) => { const f = x.f, st = x.dirty ? '<span class="st dirty">수정됨</span>' : x.synced ? '<span class="st done">동기화 완료</span>' : '<span class="st wait">대기</span>';
+    return `<tr class="${x.synced && !x.dirty ? 'done' : ''}" data-id="${esc(x.id)}"><td>${i+1}</td><td>${st}</td><td>${esc(f.date)}</td><td>${esc(f.proj)}</td><td>${esc(f.type)}</td><td>${esc(f.name)}</td><td>${esc(f.pn)}</td><td>${esc(f.qty)}</td><td>${esc(f.vendor)}</td>
+      <td>${esc(f.b)}</td><td>${esc(f.m)}</td><td>${esc(f.s)}</td><td>${esc(f.when)}</td><td>${esc(f.finder)}</td><td>${esc(f.pub)}</td><td class="wrap">${esc(f.text)}</td><td>${esc(f.act)}</td><td class="wrap">${esc(f.ps)}</td>
+      <td><button class="btn sm" data-ed>수정</button> <button class="btn sm danger" data-rm>삭제</button></td></tr>`; }).join('');
+}
+$('#ledRefresh').onclick = loadLedger;
+$('#ledBody').addEventListener('click', async e => {
+  const tr = e.target.closest('tr[data-id]'); if (!tr) return; const x = S.led.find(y => y.id === tr.dataset.id); if (!x) return;
+  try {
+    if (e.target.closest('[data-rm]')) {
+      if (!await modal({ title:'이 건을 삭제할까요?', body:`<p>${esc(x.f.pn)} · ${esc(x.f.text)}</p><p>관리대장 탭에서만 지워져요. 이미 동기화된 시트 행은 그대로 남아요.</p>`, buttons:[{label:'취소', value:false},{label:'삭제', value:true, cls:'pri'}] })) return;
+      const r = await api('delete', { ids:[x.id] }, true); if (r) { toast('삭제했어요'); loadLedger(); }
+    }
+    if (e.target.closest('[data-ed]')) editRow(x);
+  } catch(err) { msg('오류', esc(err.message)); }
+});
+async function editRow(x){
+  const f = { ...x.f };
+  const inpE = (k, lab, extra='') => `<label>${lab}</label><input data-e="${k}" value="${esc(f[k])}" ${extra}>`;
+  const selE = (k, lab, arr) => `<label>${lab}</label><select data-e="${k}">${[...new Set([f[k], ...arr])].filter(v=>v!==undefined).map(v=>`<option${v===f[k]?' selected':''}>${esc(v)}</option>`).join('')}</select>`;
+  const bigs = Object.keys(S.tree);
+  const body = `<div class="efrm">
+    ${inpE('date','발생일','placeholder="2026.10.03"')}${inpE('proj','발주 프로젝트명')}${inpE('type','TYPE / PO No.')}${inpE('name','품명')}${inpE('pn','품번')}${inpE('qty','수량','inputmode="numeric"')}
+    ${inpE('vendor','귀책업체')}${selE('b','대분류', bigs)}${selE('m','중분류', Object.keys(S.tree[f.b]||{}))}${selE('s','소분류', (S.tree[f.b]||{})[f.m]||[])}
+    ${selE('when','구분', ['수입','공정','출하'])}${inpE('finder','발견자')}${selE('pub','담당자(발행자)', S.pubs)}${inpE('text','불량내용')}${inpE('act','조치사항')}${inpE('ps','비고')}</div>`;
+  modal.onOpen = m => {   // 대분류 → 중분류 → 소분류 연동
+    const g = k => m.querySelector(`[data-e="${k}"]`);
+    const fill = (el, arr) => { el.innerHTML = arr.map(v=>`<option>${esc(v)}</option>`).join(''); };
+    g('b').onchange = () => { fill(g('m'), Object.keys(S.tree[g('b').value]||{})); fill(g('s'), (S.tree[g('b').value]||{})[g('m').value]||[]); };
+    g('m').onchange = () => fill(g('s'), (S.tree[g('b').value]||{})[g('m').value]||[]);
+    modal.lastForm = m;
+  };
+  const ok = await modal({ title:'관리대장 건 수정', body, wide:true, buttons:[{label:'취소', value:false},{label:'저장', value:true, cls:'pri'}] });
+  const m = modal.lastForm; modal.onOpen = null; modal.lastForm = null;
+  if (!ok) return;
+  m.querySelectorAll('[data-e]').forEach(el => f[el.dataset.e] = el.value.trim());
+  f.qty = String(f.qty||'').replace(/\D/g,''); f.name = fmtName(f.name);
+  try { const r = await api('update', { id:x.id, f, fp: await fpOf(f) }, true); if (r) { toast(x.synced ? '수정했어요 — 다음 동기화 때 시트에 반영돼요' : '수정했어요'); loadLedger(); } }
+  catch(err) { msg('오류', esc(err.message)); }
+}
+async function doSync(range){
+  const from = range ? $('#syncFrom').value : '', to = range ? $('#syncTo').value : '';
+  if (range && !from && !to) return msg('기간을 정해 주세요', '조건부 동기화는 발생일 시작일이나 종료일 중 하나 이상을 정해야 해요.');
+  const ymd = s => String(s||'').replace(/\D/g,'');
+  const tg = S.led.filter(x => (!x.synced || x.dirty) && (!from || ymd(x.f.date) >= ymd(from)) && (!to || ymd(x.f.date) <= ymd(to)));
+  if (!tg.length) return msg('동기화할 건이 없어요', '대기 중이거나 수정된 건이 없어요.');
+  if (!await modal({ title: range ? '조건부 동기화' : '일괄 동기화', body:`<p>${tg.length}건(새로 ${tg.filter(x=>!x.synced).length} · 수정 ${tg.filter(x=>x.dirty).length})을 관리대장 구글시트에 반영할까요?</p>`, buttons:[{label:'취소', value:false},{label:'동기화', value:true, cls:'pri'}] })) return;
+  toast('동기화 중… 잠시만 기다려 주세요');
+  try { const r = await api('sync', { from, to }, true); if (r) { await msg('동기화 완료', `${esc(r.sheet||'')} 시트에 새로 ${r.added}건, 수정 ${r.updated}건을 반영했어요.`); loadLedger(); } }
+  catch(err) { msg('동기화 오류', esc(err.message)); }
+}
+$('#syncRange').onclick = () => doSync(true);
+$('#syncAll').onclick = () => doSync(false);
+$('#delSynced').onclick = async () => {
+  const n = S.led.filter(x => x.synced && !x.dirty).length;
+  if (!n) return msg('지울 건이 없어요', '동기화 완료된 건이 없어요.');
+  if (!await modal({ title:'동기화 완료건 일괄삭제', body:`<p>동기화 완료된 ${n}건을 관리대장 탭에서 지울까요? 시트에 올라간 내용은 그대로 남아요.</p>`, buttons:[{label:'취소', value:false},{label:'삭제', value:true, cls:'pri'}] })) return;
+  try { const r = await api('deleteSynced', {}, true); if (r) { toast('지웠어요'); loadLedger(); } } catch(err) { msg('오류', esc(err.message)); }
+};
+
 rerender();
 loadAll();
+showTab(store.get('nc_tab','conv'));
+loadLedger();
 </script>
 </body>
 </html>
