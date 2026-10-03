@@ -97,6 +97,14 @@ table.led td.wrap{white-space:normal;min-width:180px;max-width:320px}
 table.led tr.done td{color:var(--mut)}
 .st{font-size:11px;font-weight:600;border-radius:2em;padding:1px 8px}
 .st.wait{background:var(--warn-bg);color:var(--warn)} .st.done{background:var(--ok-bg);color:var(--ok)} .st.dirty{background:var(--acc-bg);color:var(--acc)}
+.st.del{background:var(--bg2);color:var(--mut);border:1px solid var(--bd)} .st.gone{background:var(--err-bg);color:var(--err)}
+.seg{display:inline-flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden;margin-left:4px}
+.seg button{font:inherit;font-size:12.5px;font-weight:600;background:var(--bg2);border:0;padding:4px 12px;color:var(--mut);cursor:pointer}
+.seg button+button{border-left:1px solid var(--bd)} .seg button.on{background:var(--bg);color:var(--fg);box-shadow:inset 0 -2px 0 var(--acc)}
+table.led td.log{white-space:normal;min-width:200px;font-size:11.5px;color:var(--mut);line-height:1.55}
+table.led td.log b{color:var(--fg);font-weight:600}
+.lbar select{width:auto}
+.lbar input.hq{flex:1;min-width:180px}
 .efrm{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;align-items:center}
 .efrm label{font-size:12px;color:var(--mut);font-weight:600}
 @media (max-width:760px){ .efrm{grid-template-columns:1fr} .tabs{padding:8px 8px 0} .tabs button{padding:8px 10px;font-size:13px} }
@@ -145,9 +153,11 @@ table.led tr.done td{color:var(--mut)}
 </main>
 <main id="tab-ledger" style="display:none">
   <section class="box">
-    <div class="box-h"><h2>부적합 관리대장 업로드</h2><span class="mut" id="ledInfo">불러오는 중…</span>
+    <div class="box-h"><h2>부적합 관리대장 업로드</h2>
+      <div class="seg" id="ledView"><button type="button" data-v="list" class="on">대기 목록</button><button type="button" data-v="hist">이력</button></div>
+      <span class="mut" id="ledInfo">불러오는 중…</span>
       <button class="btn sm" id="ledRefresh" style="margin-left:auto">새로고침</button></div>
-    <div class="box-b">
+    <div class="box-b" id="ledList">
       <div class="lbar">
         <span class="mut">발생일</span>
         <input type="date" id="syncFrom"> <span class="mut">~</span> <input type="date" id="syncTo">
@@ -160,6 +170,20 @@ table.led tr.done td{color:var(--mut)}
         <th>대분류</th><th>중분류</th><th>소분류</th><th>구분</th><th>발견자</th><th>담당자(발행자)</th><th>불량내용</th><th>조치사항</th><th>비고</th><th>관리</th>
       </tr></thead><tbody id="ledBody"></tbody></table></div>
       <p class="mut" style="margin:8px 0 0">· 수정·삭제·동기화는 비밀번호가 필요해요 (한 번 입력하면 창을 닫을 때까지 유지) · 10초마다 자동 새로고침</p>
+    </div>
+    <div class="box-b" id="ledHist" style="display:none">
+      <div class="lbar">
+        <select id="hBasis"><option value="created">등록일</option><option value="date">발생일</option></select>
+        <input type="date" id="hFrom"> <span class="mut">~</span> <input type="date" id="hTo">
+        <select id="hStat"><option value="">상태 전체</option><option value="wait">대기</option><option value="dirty">수정됨</option><option value="synced">동기화 완료</option><option value="deleted">사이트에서 삭제</option><option value="gone">시트에서 삭제됨</option></select>
+        <input class="hq" id="hQ" placeholder="품번·품명·발행자·불량내용·고유번호 검색 (초성 가능)">
+        <button class="btn sm" id="hReset">초기화</button>
+      </div>
+      <div class="twrap"><table class="led"><thead><tr>
+        <th>No.</th><th>고유번호</th><th>등록 일시</th><th>사이트</th><th>구글시트</th><th>발생일</th><th>발주 프로젝트명</th><th>TYPE / PO No.</th><th>품명</th><th>품번</th><th>수량</th><th>귀책업체</th>
+        <th>분류 (대 &gt; 중 &gt; 소)</th><th>구분</th><th>발견자</th><th>담당자(발행자)</th><th>불량내용</th><th>조치사항</th><th>비고</th><th>처리 기록</th>
+      </tr></thead><tbody id="histBody"></tbody></table></div>
+      <p class="mut" style="margin:8px 0 0">· 사이트·구글시트에서 지워도 이력은 남아요 · 구글시트 칸은 지금 시트의 V열(동기화 고유번호)을 찾아 보여줘요 · 보기는 비밀번호 없이 가능</p>
     </div>
   </section>
 </main>
@@ -827,7 +851,7 @@ function modal({ title='', body='', buttons=[{label:'확인', value:true, cls:'p
 const msg = (title, body='') => modal({ title, body: body?`<p>${body}</p>`:'' });
 
 /* ================== 관리대장 서버(Apps Script) 연결 ================== */
-const MOCK_DB = { seq:0, items:[], fps:[] };
+const MOCK_DB = { seq:0, items:[], fps:[], hist:[], row:3962 };
 async function api(action, data={}, needPw=false){
   if (needPw) {
     let pw = sessionStorage.getItem('nc_pw');
@@ -852,15 +876,17 @@ async function call(action, data){
 }
 function mockApi(a, d){   // 테스트(?mock=1)용 가짜 서버
   const st = MOCK_DB;
+  const hl = (id, act, fn) => { const r = st.hist.find(h=>h.id===id); if (r) { r.log.push({ t:Date.now(), a:act }); fn && fn(r); } };
+  if (a==='history') return { ok:true, sheetOk:true, sheet:'수입/공정 부적합 (테스트)', recs: JSON.parse(JSON.stringify(st.hist)).map(r=>({ ...r, rowNow: r.everSynced && !r.goneInSheet ? r.row : 0 })) };
   if (a!=='list' && a!=='check' && a!=='add' && d.pw !== 'vnawlf') return { ok:false, error:'badpw' };
   if (a==='list') return { ok:true, items: JSON.parse(JSON.stringify(st.items)) };
   if (a==='check') return { ok:true, exists: st.fps.includes(d.fp) };
-  if (a==='add') { if (st.fps.includes(d.fp)) return { ok:true, dup:true }; st.seq++; const it={ id:'WEB-TEST-'+String(st.seq).padStart(4,'0'), seq:st.seq, fp:d.fp, f:{...d.f}, synced:false, dirty:false }; st.items.push(it); st.fps.push(d.fp); return { ok:true, item:it }; }
-  if (a==='update') { const it = st.items.find(x=>x.id===d.id); it.f = {...d.f}; if (!st.fps.includes(d.fp)) st.fps.push(d.fp); if (it.synced) it.dirty = true; return { ok:true }; }
-  if (a==='delete') { st.items = st.items.filter(x=>!d.ids.includes(x.id)); return { ok:true }; }
-  if (a==='deleteSynced') { st.items = st.items.filter(x=>!(x.synced && !x.dirty)); return { ok:true }; }
+  if (a==='add') { if (st.fps.includes(d.fp)) return { ok:true, dup:true }; st.seq++; const it={ id:'WEB-TEST-'+String(st.seq).padStart(4,'0'), seq:st.seq, fp:d.fp, f:{...d.f}, synced:false, dirty:false }; st.items.push(it); st.fps.push(d.fp); it.created=Date.now(); st.hist.push({ id:it.id, seq:it.seq, created:it.created, f:{...d.f}, status:'wait', everSynced:false, log:[{t:it.created,a:'등록'}] }); return { ok:true, item:it }; }
+  if (a==='update') { const it = st.items.find(x=>x.id===d.id); it.f = {...d.f}; if (!st.fps.includes(d.fp)) st.fps.push(d.fp); if (it.synced) it.dirty = true; hl(it.id,'수정',r=>{ r.f={...d.f}; r.status=it.dirty?'dirty':'wait'; }); return { ok:true }; }
+  if (a==='delete') { d.ids.forEach(id=>hl(id,'삭제',r=>{ r.status='deleted'; })); st.items = st.items.filter(x=>!d.ids.includes(x.id)); return { ok:true }; }
+  if (a==='deleteSynced') { st.items.filter(x=>x.synced && !x.dirty).forEach(x=>hl(x.id,'일괄삭제',r=>{ r.status='deleted'; })); st.items = st.items.filter(x=>!(x.synced && !x.dirty)); return { ok:true }; }
   if (a==='sync') { const ymd=s=>String(s||'').replace(/\D/g,''); const f=ymd(d.from), t=ymd(d.to); let added=0, updated=0;
-    st.items.filter(x=>(!x.synced||x.dirty) && (!f||ymd(x.f.date)>=f) && (!t||ymd(x.f.date)<=t)).forEach(x=>{ x.synced ? updated++ : added++; x.synced=true; x.dirty=false; });
+    st.items.filter(x=>(!x.synced||x.dirty) && (!f||ymd(x.f.date)>=f) && (!t||ymd(x.f.date)<=t)).forEach(x=>{ const again=x.synced; again ? updated++ : added++; if (!again) x.row = ++st.row; x.synced=true; x.dirty=false; hl(x.id,(again?'재동기화':'동기화')+' ('+x.row+'행)',r=>{ r.status='synced'; r.everSynced=true; r.row=x.row; r.f={...x.f}; }); });
     return { ok:true, added, updated, sheet:'수입공정 부적합 (테스트)' }; }
   return { ok:false, error:'unknown' };
 }
@@ -915,8 +941,8 @@ async function loadLedger(){
     const r = await api('list');
     S.led = (r.items || []).sort((a,b) => a.seq - b.seq);
     renderLedger();
-    const t = new Date(); $('#ledInfo').textContent = `${S.led.length}건 · 대기 ${S.led.filter(x=>!x.synced).length} · 수정됨 ${S.led.filter(x=>x.dirty).length} · 동기화 완료 ${S.led.filter(x=>x.synced&&!x.dirty).length} · ${t.toTimeString().slice(0,8)} 갱신`;
-  } catch(e) { $('#ledInfo').textContent = '연결 안 됨: ' + e.message; }
+    const t = new Date(); if (S.ledView !== 'hist') $('#ledInfo').textContent = `${S.led.length}건 · 대기 ${S.led.filter(x=>!x.synced).length} · 수정됨 ${S.led.filter(x=>x.dirty).length} · 동기화 완료 ${S.led.filter(x=>x.synced&&!x.dirty).length} · ${t.toTimeString().slice(0,8)} 갱신`;
+  } catch(e) { if (S.ledView !== 'hist') $('#ledInfo').textContent = '연결 안 됨: ' + e.message; }
   finally { ledBusy = false; }
 }
 function renderLedger(){
@@ -928,7 +954,65 @@ function renderLedger(){
       <td>${esc(f.b)}</td><td>${esc(f.m)}</td><td>${esc(f.s)}</td><td>${esc(f.when)}</td><td>${esc(f.finder)}</td><td>${esc(f.pub)}</td><td class="wrap">${esc(f.text)}</td><td>${esc(f.act)}</td><td class="wrap">${esc(f.ps)}</td>
       <td><button class="btn sm" data-ed>수정</button> <button class="btn sm danger" data-rm>삭제</button></td></tr>`; }).join('');
 }
-$('#ledRefresh').onclick = loadLedger;
+$('#ledRefresh').onclick = () => S.ledView === 'hist' ? loadHist() : loadLedger();
+
+/* ---------- 이력 보기 (비밀번호 없음) ---------- */
+S.ledView = 'list'; S.hist = [];
+function setLedView(v){
+  S.ledView = v; store.set('nc_ledview', v);
+  document.querySelectorAll('#ledView button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  $('#ledList').style.display = v === 'list' ? '' : 'none';
+  $('#ledHist').style.display = v === 'hist' ? '' : 'none';
+  if (v === 'hist') loadHist(); else { S.histInfo = ''; loadLedger(); }
+}
+document.querySelectorAll('#ledView button').forEach(b => b.onclick = () => setLedView(b.dataset.v));
+let histBusy = false;
+async function loadHist(){
+  if (histBusy) return; histBusy = true;
+  $('#ledInfo').textContent = '이력 불러오는 중…';
+  try {
+    const r = await api('history');
+    S.hist = (r.recs || []).sort((a,b) => b.seq - a.seq);
+    S.histSheetOk = !!r.sheetOk;
+    S.histAt = new Date().toTimeString().slice(0,8);
+    renderHist();
+  } catch(e) { $('#ledInfo').textContent = '연결 안 됨: ' + e.message; }
+  finally { histBusy = false; }
+}
+const two = n => String(n).padStart(2,'0');
+const fmtTs = t => { if (!t) return ''; const d = new Date(t); return `${d.getFullYear()}.${two(d.getMonth()+1)}.${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`; };
+const ymdOf = s => { const m = String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); return m ? m[1]+two(m[2])+two(m[3]) : ''; };
+const sheetState = r => !r.everSynced ? 'none' : r.rowNow ? 'in' : (S.histSheetOk ? 'gone' : 'unk');
+function histRows(){
+  const basis = $('#hBasis').value, f0 = ymdOf($('#hFrom').value), t0 = ymdOf($('#hTo').value), stt = $('#hStat').value, q = $('#hQ').value;
+  return S.hist.filter(r => {
+    const d = basis === 'created' ? ymdOf(fmtTs(r.created)) : ymdOf(r.f.date);
+    if (f0 && (!d || d < f0)) return false;
+    if (t0 && (!d || d > t0)) return false;
+    if (stt === 'gone') { if (sheetState(r) !== 'gone') return false; }
+    else if (stt && r.status !== stt) return false;
+    if (clean(q)) { const f = r.f; const hay = [r.id, f.pn, f.name, f.pub, f.finder, f.text, f.proj, f.type, f.vendor, f.ps].map(clean).join(' ');
+      if (!nameMatches(q, [hay]).length) return false; }
+    return true;
+  });
+}
+function renderHist(){
+  const rows = histRows();
+  const cnt = k => S.hist.filter(r => r.status === k).length;
+  $('#ledInfo').textContent = `이력 ${S.hist.length}건 · 대기 ${cnt('wait')} · 수정됨 ${cnt('dirty')} · 동기화 완료 ${cnt('synced')} · 사이트에서 삭제 ${cnt('deleted')} · 시트에서 삭제됨 ${S.hist.filter(r=>sheetState(r)==='gone').length}` + (rows.length !== S.hist.length ? ` · 검색 결과 ${rows.length}건` : '') + ` · ${S.histAt} 갱신`;
+  if (!rows.length) { $('#histBody').innerHTML = `<tr><td colspan="20" class="mut" style="padding:24px">${S.hist.length ? '조건에 맞는 이력이 없어요.' : '아직 이력이 없어요. 관리대장 탭에 올린 건부터 여기에 쌓여요.'}</td></tr>`; return; }
+  const ST = { wait:'<span class="st wait">대기</span>', dirty:'<span class="st dirty">수정됨</span>', synced:'<span class="st done">동기화 완료</span>' };
+  $('#histBody').innerHTML = rows.map((r, i) => { const f = r.f || {}, ss = sheetState(r);
+    const site = r.status === 'deleted' ? `<span class="st del">삭제됨</span>${r.everSynced ? '' : '<br><small class="mut">동기화 전 삭제</small>'}` : (ST[r.status] || '');
+    const sheet = ss === 'in' ? `<b>${r.rowNow}행</b>` : ss === 'gone' ? `<span class="st gone">시트에서 삭제됨</span>${r.row ? `<br><small class="mut">마지막 ${r.row}행</small>` : ''}` : ss === 'unk' ? '<span class="mut">확인 안 됨</span>' : '<span class="mut">—</span>';
+    const log = (r.log || []).map(l => `${esc(fmtTs(l.t).slice(5))} <b>${esc(l.a)}</b>`).join('<br>');
+    return `<tr class="${r.status === 'deleted' ? 'done' : ''}"><td>${S.hist.length - S.hist.indexOf(r)}</td><td>${esc(r.id)}</td><td>${esc(fmtTs(r.created))}</td><td>${site}</td><td>${sheet}</td><td>${esc(f.date)}</td><td>${esc(f.proj)}</td><td>${esc(f.type)}</td><td>${esc(f.name)}</td><td>${esc(f.pn)}</td><td>${esc(f.qty)}</td><td>${esc(f.vendor)}</td>
+      <td>${esc([f.b, f.m, f.s].filter(Boolean).join(' > '))}</td><td>${esc(f.when)}</td><td>${esc(f.finder)}</td><td>${esc(f.pub)}</td><td class="wrap">${esc(f.text)}</td><td>${esc(f.act)}</td><td class="wrap">${esc(f.ps)}</td><td class="log">${log}</td></tr>`; }).join('');
+}
+['#hBasis','#hFrom','#hTo','#hStat'].forEach(id => $(id).addEventListener('change', renderHist));
+$('#hQ').addEventListener('input', renderHist);
+$('#hQ').addEventListener('blur', renderHist);
+$('#hReset').onclick = () => { $('#hBasis').value = 'created'; $('#hFrom').value = $('#hTo').value = $('#hStat').value = $('#hQ').value = ''; renderHist(); };
 $('#ledBody').addEventListener('click', async e => {
   const tr = e.target.closest('tr[data-id]'); if (!tr) return; const x = S.led.find(y => y.id === tr.dataset.id); if (!x) return;
   try {
@@ -986,7 +1070,7 @@ $('#delSynced').onclick = async () => {
 rerender();
 loadAll();
 showTab(store.get('nc_tab','conv'));
-loadLedger();
+if (store.get('nc_ledview','list') === 'hist') setLedView('hist'); else loadLedger();
 </script>
 </body>
 </html>
