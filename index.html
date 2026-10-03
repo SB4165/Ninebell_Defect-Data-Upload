@@ -61,10 +61,10 @@ textarea:focus,input:focus,select:focus{outline:2px solid var(--acc);outline-off
 .actsel{display:flex;flex-wrap:wrap;gap:6px}
 .csel{color:#1f2328}
 .csel option{color:#1f2328}
-input.need,select.need{background:var(--empty);border-color:#e9bfb8;color:#1f2328}
+input.need,select.need,textarea.need{background:var(--empty);border-color:#e9bfb8;color:#1f2328}
 .actsel.need{border:2px dashed #d1242f;border-radius:6px;padding:6px;background:#fff}
 .actsel.need::after{content:'선택 필요';font-size:12px;color:#d1242f;align-self:center;margin-left:4px}
-input.need::placeholder{color:#8a4a40}
+input.need::placeholder,textarea.need::placeholder{color:#8a4a40}
 .qty{display:flex;align-items:center;gap:6px}
 .qty input{max-width:120px}
 .qty span{color:var(--mut);font-size:13px;font-weight:600}
@@ -104,6 +104,20 @@ table.led tr.done td{color:var(--mut)}
 table.led td.log{white-space:normal;min-width:200px;font-size:11.5px;color:var(--mut);line-height:1.55}
 table.led td.log b{color:var(--fg);font-weight:600}
 .lbar select{width:auto}
+/* 개선요청 탭 */
+.rqform{display:grid;grid-template-columns:90px minmax(0,1fr);gap:8px 10px;align-items:start}
+.rqform label{font-size:12px;color:var(--mut);font-weight:600;padding-top:6px}
+.rqform textarea{min-height:70px}
+.pubsel{display:flex;flex-wrap:wrap;gap:6px}
+table.rq{min-width:860px}
+table.rq td.wrap{min-width:260px;max-width:460px;white-space:pre-wrap}
+table.rq td.op{min-width:200px;max-width:360px;white-space:pre-wrap}
+select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radius:2em}
+.rst.s0{background:var(--warn-bg);color:var(--warn);border-color:#e6d27a}
+.rst.s1{background:var(--acc-bg);color:var(--acc);border-color:#9cc7f5}
+.rst.s2{background:var(--ok-bg);color:var(--ok);border-color:#9bd2ab}
+.rst.s3{background:var(--bg2);color:var(--mut)}
+@media (max-width:760px){ .rqform{grid-template-columns:1fr} .rqform label{padding-top:0} .tabs .tpre{display:none} .tabs button{white-space:nowrap} }
 .lbar input.hq{flex:1;min-width:180px}
 .efrm{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;align-items:center}
 .efrm label{font-size:12px;color:var(--mut);font-weight:600}
@@ -131,8 +145,9 @@ table.led td.log b{color:var(--fg);font-weight:600}
   <div class="status" id="status"></div>
 </div></header>
 <nav class="tabs" id="tabs">
-  <button type="button" data-tab="conv" class="on">부적합 양식 변환기</button>
-  <button type="button" data-tab="ledger">부적합 관리대장 업로드<span class="badge" id="ledBadge" style="display:none"></span></button>
+  <button type="button" data-tab="conv" class="on"><span class="tpre">부적합 </span>양식 변환기</button>
+  <button type="button" data-tab="ledger"><span class="tpre">부적합 </span>관리대장 업로드<span class="badge" id="ledBadge" style="display:none"></span></button>
+  <button type="button" data-tab="req">개선요청<span class="badge" id="reqBadge" style="display:none"></span></button>
 </nav>
 <main id="tab-conv">
   <section class="box">
@@ -184,6 +199,27 @@ table.led td.log b{color:var(--fg);font-weight:600}
         <th>분류 (대 &gt; 중 &gt; 소)</th><th>구분</th><th>발견자</th><th>담당자(발행자)</th><th>불량내용</th><th>조치사항</th><th>비고</th><th>처리 기록</th>
       </tr></thead><tbody id="histBody"></tbody></table></div>
       <p class="mut" style="margin:8px 0 0">· 사이트·구글시트에서 지워도 이력은 남아요 · 구글시트 칸은 지금 시트의 V열(동기화 고유번호)을 찾아 보여줘요 · 보기는 비밀번호 없이 가능</p>
+    </div>
+  </section>
+</main>
+<main id="tab-req" style="display:none">
+  <section class="box">
+    <div class="box-h"><h2>개선요청</h2><span class="mut">사이트를 쓰면서 불편한 점·바라는 기능을 남겨 주세요</span></div>
+    <div class="box-b">
+      <div class="rqform">
+        <label>작성자</label><div class="pubsel" id="rqAuthor"></div>
+        <label for="rqText">요청사항</label><textarea id="rqText" placeholder="입력 필요 (예: 발견자도 초성으로 검색되면 좋겠어요)"></textarea>
+        <span></span><div><button class="btn pri" id="rqAdd">등록</button></div>
+      </div>
+    </div>
+  </section>
+  <section class="box">
+    <div class="box-h"><h2>요청 목록</h2><span class="mut" id="rqInfo">불러오는 중…</span><button class="btn sm" id="rqRefresh" style="margin-left:auto">새로고침</button></div>
+    <div class="box-b">
+      <div class="twrap"><table class="led rq"><thead><tr>
+        <th>No.</th><th>작성자</th><th>요청사항</th><th>검토사항</th><th>의견</th><th>관리</th>
+      </tr></thead><tbody id="rqBody"></tbody></table></div>
+      <p class="mut" style="margin:8px 0 0">· 요청 등록·수정·삭제는 누구나 · 검토사항과 의견은 관리자만 (비밀번호) · 15초마다 자동 새로고침</p>
     </div>
   </section>
 </main>
@@ -470,7 +506,7 @@ async function loadAll(){
   const jobs = [
     loadSheet(CONFIG.REF, parseRef, x=>x.cats.length>0).then(([x])=>{ S.cats=x.cats; S.vendors=x.vendors; buildTree(); S.ld.ref=true; }).catch(()=>S.ld.ref=false),
     loadSheet(CONFIG.PROJ, parseProj, x=>x.length>0).then(list=>{ const m=new Map(); list.flat().forEach(p=>{ if(!m.has(p.k)) m.set(p.k,p); }); S.proj=[...m.values()]; S.ld.proj=true; }).catch(()=>S.ld.proj=false),
-    loadParts().then(x=>{ S.parts=x.parts; S.finders=x.finders; S.pubs=x.pubs||[]; S.ld.parts=true; }).catch(()=>S.ld.parts=false),
+    loadParts().then(x=>{ S.parts=x.parts; S.finders=x.finders; S.pubs=x.pubs||[]; S.ld.parts=true; if ($('#tab-req') && $('#tab-req').style.display !== 'none') renderReqForm(); }).catch(()=>S.ld.parts=false),
     fetch('model_report.json?t=' + Date.now()).then(r=>r.ok?r.json():null).then(r=>{ S.report=r; }).catch(()=>{}),
     fetch(CONFIG.MODEL_URL).then(r=>r.json()).then(m=>{ Model.m=m; S.ld.model=true; }).catch(()=>S.ld.model=false),
   ];
@@ -624,6 +660,19 @@ function findVendor(v, loose){
 function removeOnce(s, sub){ const i = s.toUpperCase().indexOf(String(sub).toUpperCase()); return i<0 ? s : (s.slice(0,i) + ' ' + s.slice(i+sub.length)).trim(); }
 
 /* ================== 카드 생성 ================== */
+// 불량내용에 Proposal / SCS 관련 말이 있으면 품명을 PROPOSAL / SCS 로 (둘 다 있으면 먼저 나온 것)
+const KW_NAMES = [['PROPOSAL', /proposal|프로포[절잘즐]/i], ['SCS', /(^|[^A-Za-z])SCS(?![A-Za-z])|에스씨에스/i]];
+function kwName(text){
+  let best = null;
+  for (const [n, re] of KW_NAMES) { const m = String(text||'').match(re); if (m && (!best || m.index < best.i)) best = { n, i: m.index }; }
+  return best ? best.n : '';
+}
+// 불량내용이 바뀌었을 때 품명 맞추기: 키워드가 생기면 그 이름, 사라지면 품번의 원래 품명으로 되돌림
+function syncKwName(it){
+  const kn = kwName(it.text);
+  if (kn) { it.name = kn; it.nameKw = kn; }
+  else if (it.nameKw) { if (fmtName(it.name) === it.nameKw) { const p = S.parts.get(key(it.pn)); it.name = p ? fmtName(p.name) : ''; } it.nameKw = ''; }
+}
 function makeItem(p){
   const projName = p.proj?.name || '';
   // 품명: 시트에서 품번으로 찾은 품명과 같을 때만 인정 → 같은 줄은 불량내용에서 빼고, 다르면 넣지 않고 안내
@@ -639,6 +688,7 @@ function makeItem(p){
     nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '', vendorAsk: !!p.vendorAsk && !p.vendor,
     recs: [], manual:false
   };
+  syncKwName(it);
   recommend(it, true);
   return it;
 }
@@ -839,9 +889,9 @@ cards.addEventListener('change', e => {
     const r = Model.predict(it.text, { big: it.b, allowed:S.allowed, memo:S.memo }); if (r[0]) [,it.m,it.s] = r[0].parts; it.recs = r; return refreshCard(i); }
   if (k==='m') { it.m = el.value; it.s=''; it.manual = true; const r = it.recs.find(x=>x.parts[0]===it.b && x.parts[1]===it.m); if (r) it.s = r.parts[2]; return refreshCard(i); }
   if (k==='s') { it.s = el.value; it.manual = true; return refreshCard(i); }
-  if (k==='text') { if (!it.manual) recommend(it, true); return refreshCard(i); }
+  if (k==='text') { syncKwName(it); if (!it.manual) recommend(it, true); return refreshCard(i); }
   if (k==='proj') { const pj = findProject(it.proj); const pt = projectType(pj?.name || it.proj, KW(it.proj) || ''); it.type = pt.type || it.type; it.types = pt.list; it.projUnknown = !pt.type; return refreshCard(i); }
-  if (k==='pn') { const p = S.parts.get(key(it.pn)); if (p) { it.name = fmtName(p.name); it.partUnknown = false; } return refreshCard(i); }
+  if (k==='pn') { const p = S.parts.get(key(it.pn)); if (p) { if (!kwName(it.text)) it.name = fmtName(p.name); it.partUnknown = false; } return refreshCard(i); }
   refreshOut(i);
 });
 cards.addEventListener('keydown', e => {
@@ -881,7 +931,7 @@ function modal({ title='', body='', buttons=[{label:'확인', value:true, cls:'p
 const msg = (title, body='') => modal({ title, body: body?`<p>${body}</p>`:'' });
 
 /* ================== 관리대장 서버(Apps Script) 연결 ================== */
-const MOCK_DB = { seq:0, items:[], fps:[], hist:[], row:3962 };
+const MOCK_DB = { seq:0, items:[], fps:[], hist:[], row:3962, rq:[], rqSeq:0 };
 async function api(action, data={}, needPw=false){
   if (needPw) {
     let pw = sessionStorage.getItem('nc_pw');
@@ -907,6 +957,11 @@ async function call(action, data){
 function mockApi(a, d){   // 테스트(?mock=1)용 가짜 서버
   const st = MOCK_DB;
   const hl = (id, act, fn) => { const r = st.hist.find(h=>h.id===id); if (r) { r.log.push({ t:Date.now(), a:act }); fn && fn(r); } };
+  if (a==='reqList') return { ok:true, items: JSON.parse(JSON.stringify(st.rq)) };
+  if (a==='reqAdd') { if (!clean(d.author) || !clean(d.text)) throw new Error('작성자와 요청사항을 입력해 주세요'); st.rqSeq++; st.rq.push({ id:'REQ-'+st.rqSeq, no:st.rqSeq, author:d.author, text:d.text, status:'검토', opinion:'', created:Date.now() }); return { ok:true }; }
+  if (a==='reqUpdate') { const it = st.rq.find(x=>x.id===d.id); if (!it) throw new Error('이미 삭제된 요청이에요'); it.author=d.author; it.text=d.text; return { ok:true }; }
+  if (a==='reqDelete') { st.rq = st.rq.filter(x=>x.id!==d.id); return { ok:true }; }
+  if (a==='reqReview') { if (d.pw !== 'vnawlf') return { ok:false, error:'badpw' }; const it = st.rq.find(x=>x.id===d.id); if (d.status!=null) it.status=d.status; if (d.opinion!=null) it.opinion=d.opinion; return { ok:true }; }
   if (a==='history') return { ok:true, sheetOk:true, sheet:'수입/공정 부적합 (테스트)', recs: JSON.parse(JSON.stringify(st.hist)).map(r=>({ ...r, rowNow: r.everSynced && !r.goneInSheet ? r.row : 0 })) };
   if (a!=='list' && a!=='check' && a!=='add' && d.pw !== 'vnawlf') return { ok:false, error:'badpw' };
   if (a==='list') return { ok:true, items: JSON.parse(JSON.stringify(st.items)) };
@@ -965,9 +1020,11 @@ function showTab(t){
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   $('#tab-conv').style.display = t === 'conv' ? '' : 'none';
   $('#tab-ledger').style.display = t === 'ledger' ? '' : 'none';
+  $('#tab-req').style.display = t === 'req' ? '' : 'none';
   store.set('nc_tab', t);
   clearInterval(ledTimer);
   if (t === 'ledger') { loadLedger(); ledTimer = setInterval(() => { if (!document.hidden && !document.querySelector('.modal')) loadLedger(); }, 10000); }
+  if (t === 'req') { renderReqForm(); loadReq(); ledTimer = setInterval(() => { if (!document.hidden && !document.querySelector('.modal')) loadReq(); }, 15000); }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 async function loadLedger(){
@@ -1101,6 +1158,79 @@ $('#delSynced').onclick = async () => {
   if (!await modal({ title:'동기화 완료건 일괄삭제', body:`<p>동기화 완료된 ${n}건을 관리대장 탭에서 지울까요? 시트에 올라간 내용은 그대로 남아요.</p>`, buttons:[{label:'취소', value:false},{label:'삭제', value:true, cls:'pri'}] })) return;
   try { const r = await api('deleteSynced', {}, true); if (r) { toast('지웠어요'); loadLedger(); } } catch(err) { msg('오류', esc(err.message)); }
 };
+
+/* ================== 개선요청 탭 ================== */
+const REQ_STATUS = ['검토', '개발중', '적용완료', '적용불가'];
+S.rq = []; S.rqAuthor = '';
+function renderReqForm(){
+  const list = S.pubs.length ? S.pubs : [];
+  $('#rqAuthor').className = 'pubsel actsel ' + (S.rqAuthor ? '' : 'need');
+  $('#rqAuthor').innerHTML = list.map(n => `<button type="button" class="ac${S.rqAuthor===n?' on':''}" data-rqa="${esc(n)}" style="background:#eef1f4">${esc(n)}</button>`).join('') || '<span class="mut">발행자 명단 불러오는 중…</span>';
+  $('#rqText').classList.toggle('need', !clean($('#rqText').value));
+}
+$('#rqAuthor').addEventListener('click', e => { const b = e.target.closest('[data-rqa]'); if (!b) return; S.rqAuthor = b.dataset.rqa; renderReqForm(); });
+$('#rqText').addEventListener('input', () => $('#rqText').classList.toggle('need', !clean($('#rqText').value)));
+let rqBusy = false;
+async function loadReq(){
+  if (rqBusy) return; rqBusy = true;
+  try { const r = await api('reqList'); S.rq = (r.items || []).sort((a,b) => b.no - a.no); renderReq(); }
+  catch(e) { $('#rqInfo').textContent = '연결 안 됨: ' + e.message; }
+  finally { rqBusy = false; }
+}
+function renderReq(){
+  const cnt = k => S.rq.filter(x => x.status === k).length;
+  $('#rqInfo').textContent = `${S.rq.length}건 · ` + REQ_STATUS.map(k => `${k} ${cnt(k)}`).join(' · ') + ' · ' + new Date().toTimeString().slice(0,8) + ' 갱신';
+  const b = $('#reqBadge'), n = cnt('검토') + cnt('개발중'); b.style.display = n ? '' : 'none'; b.textContent = n;
+  if (!S.rq.length) { $('#rqBody').innerHTML = '<tr><td colspan="6" class="mut" style="padding:24px">아직 등록된 요청이 없어요.</td></tr>'; return; }
+  $('#rqBody').innerHTML = S.rq.map(x => { const si = Math.max(0, REQ_STATUS.indexOf(x.status));
+    return `<tr data-id="${esc(x.id)}"><td>${x.no}</td><td>${esc(x.author)}</td><td class="wrap">${esc(x.text)}</td>
+      <td><select class="rst s${si}" data-rst>${REQ_STATUS.map(k => `<option${k===x.status?' selected':''}>${k}</option>`).join('')}</select></td>
+      <td class="op">${x.opinion ? esc(x.opinion) : '<span class="mut">-</span>'}<div style="margin-top:4px"><button class="btn sm" data-rop>의견 ${x.opinion ? '수정' : '작성'}</button></div></td>
+      <td><button class="btn sm" data-red>수정</button> <button class="btn sm danger" data-rrm>삭제</button></td></tr>`; }).join('');
+}
+$('#rqRefresh').onclick = loadReq;
+$('#rqAdd').onclick = async () => {
+  const text = $('#rqText').value.trim();
+  if (!S.rqAuthor || !text) { renderReqForm(); return msg('비어 있는 칸이 있어요', `${[!S.rqAuthor && '작성자', !text && '요청사항'].filter(Boolean).join(', ')}을(를) 입력해 주세요.`); }
+  try { await api('reqAdd', { author: S.rqAuthor, text }); $('#rqText').value = ''; renderReqForm(); toast('개선요청을 등록했어요'); loadReq(); }
+  catch(e) { msg('등록하지 못했어요', esc(e.message)); }
+};
+function reqForm(title, x){
+  const body = `<div class="efrm"><label>작성자</label><select data-f="author">${[...new Set([x.author, ...S.pubs])].filter(Boolean).map(n => `<option${n===x.author?' selected':''}>${esc(n)}</option>`).join('')}</select>
+    <label>요청사항</label><textarea data-f="text" rows="5">${esc(x.text)}</textarea></div>`;
+  modal.onOpen = m => { modal.lastForm = m; };
+  return modal({ title, body, wide:true, buttons:[{label:'취소', value:false},{label:'저장', value:true, cls:'pri'}] }).then(ok => { const m = modal.lastForm; modal.onOpen = null; modal.lastForm = null;
+    return ok ? { author: m.querySelector('[data-f="author"]').value, text: m.querySelector('[data-f="text"]').value.trim() } : null; });
+}
+$('#rqBody').addEventListener('change', async e => {
+  const sel = e.target.closest('[data-rst]'); if (!sel) return;
+  const tr = sel.closest('tr'), x = S.rq.find(y => y.id === tr.dataset.id); if (!x) return;
+  try { const r = await api('reqReview', { id:x.id, status: sel.value }, true);
+    if (r) { toast(`검토사항을 '${sel.value}'(으)로 바꿨어요`); } else sel.value = x.status;
+  } catch(err) { sel.value = x.status; msg('오류', esc(err.message)); }
+  loadReq();
+});
+$('#rqBody').addEventListener('click', async e => {
+  const tr = e.target.closest('tr[data-id]'); if (!tr) return; const x = S.rq.find(y => y.id === tr.dataset.id); if (!x) return;
+  try {
+    if (e.target.closest('[data-rrm]')) {
+      if (!await modal({ title:'이 요청을 삭제할까요?', body:`<p>${esc(x.text).slice(0,120)}</p>`, buttons:[{label:'취소', value:false},{label:'삭제', value:true, cls:'pri'}] })) return;
+      await api('reqDelete', { id:x.id }); toast('삭제했어요'); loadReq();
+    }
+    if (e.target.closest('[data-red]')) {
+      const f = await reqForm('개선요청 수정', x); if (!f) return;
+      if (!f.author || !f.text) return msg('비어 있는 칸이 있어요', '작성자와 요청사항을 입력해 주세요.');
+      await api('reqUpdate', { id:x.id, ...f }); toast('수정했어요'); loadReq();
+    }
+    if (e.target.closest('[data-rop]')) {
+      modal.onOpen = m => { modal.lastForm = m; };
+      const ok = await modal({ title:'관리자 의견', body:`<p class="mut">${esc(x.author)} · ${esc(x.text).slice(0,80)}</p><textarea data-f="op" rows="5" placeholder="검토 결과·반영 계획 등">${esc(x.opinion||'')}</textarea>`, wide:true, buttons:[{label:'취소', value:false},{label:'저장', value:true, cls:'pri'}] });
+      const m = modal.lastForm; modal.onOpen = null; modal.lastForm = null; if (!ok) return;
+      const r = await api('reqReview', { id:x.id, opinion: m.querySelector('[data-f="op"]').value.trim() }, true);
+      if (r) { toast('의견을 저장했어요'); loadReq(); }
+    }
+  } catch(err) { msg('오류', esc(err.message)); }
+});
 
 try { localStorage.removeItem('nc_finder'); } catch(e) {}   // 예전에 기억해 둔 발견자 지우기
 if (!IS_MOBILE) try { localStorage.removeItem('nc_pub'); } catch(e) {}   // PC(공용 PC 포함)는 발행자를 기억하지 않음 → 예전에 기억해 둔 값도 지움
