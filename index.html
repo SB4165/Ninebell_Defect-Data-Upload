@@ -116,7 +116,7 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
 .rst.s0{background:var(--warn-bg);color:var(--warn);border-color:#e6d27a}
 .rst.s1{background:var(--acc-bg);color:var(--acc);border-color:#9cc7f5}
 .rst.s2{background:var(--ok-bg);color:var(--ok);border-color:#9bd2ab}
-.rst.s3{background:var(--bg2);color:var(--mut)}
+.rst.s3{background:#f9cdc6;color:#1f2328;border-color:#e8a99f}   /* 적용불가 = 조치내용 '업체반출'과 같은 색 */
 @media (max-width:760px){ .rqform{grid-template-columns:1fr} .rqform label{padding-top:0} .tabs .tpre{display:none} .tabs button{white-space:nowrap} }
 .lbar input.hq{flex:1;min-width:180px}
 .efrm{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;align-items:center}
@@ -672,7 +672,21 @@ function kwName(text){
 function syncKwName(it){
   const kn = kwName(it.text);
   if (kn) { it.name = kn; it.nameKw = kn; }
-  else if (it.nameKw) { if (fmtName(it.name) === it.nameKw) { const p = S.parts.get(key(it.pn)); it.name = p ? fmtName(p.name) : ''; } it.nameKw = ''; }
+  else if (it.nameKw) { if (fmtName(it.name) === it.nameKw) { const p = S.parts.get(key(it.pnOrig || it.pn)); it.name = p ? fmtName(p.name) : ''; } it.nameKw = ''; }
+  syncKwPn(it);
+}
+// 품명이 PROPOSAL · SCS 이면 품번은 '-' (FRAME 빠른 입력과 같음). 품명이 다시 바뀌면 원래 품번으로 되돌림
+const KW_NAME_SET = new Set(KW_NAMES.map(([n]) => n));
+function syncKwPn(it){
+  if (KW_NAME_SET.has(fmtName(it.name))) { if (it.pn !== '-') { it.pnOrig = it.pn; it.pn = '-'; it.partUnknown = false; } }
+  else if (it.pn === '-' && it.pnOrig) { it.pn = it.pnOrig; it.pnOrig = ''; }
+}
+// 입력하는 동안 카드의 품명·품번 칸을 바로 맞춤 (카드를 다시 그리지 않아 입력 중인 칸이 유지됨)
+function fillNamePn(card, it){
+  const ni = card.querySelector('[data-k="name"]'), pi = card.querySelector('[data-k="pn"]');
+  if (ni && document.activeElement !== ni) { ni.value = it.name; ni.classList.toggle('need', !clean(it.name)); }
+  if (pi && pi.value !== it.pn) { pi.value = it.pn; pi.classList.toggle('need', !clean(it.pn)); }
+  card.querySelectorAll('[data-qname]').forEach(c => c.classList.toggle('on', fmtName(it.name) === c.dataset.qname));
 }
 function makeItem(p){
   const projName = p.proj?.name || '';
@@ -887,10 +901,10 @@ cards.addEventListener('input', e => {
   if (k==='finder') { openDD(el); }
   if (k==='vendor') { openDD(el); if (S.vendorBig[el.value]) { /* 정확히 일치하면 바로 적용은 blur 시 */ } }
   if (k==='text') {   // Proposal·SCS 자동 품명: 입력하는 동안 바로 반영 (칸을 벗어나지 않아도)
-    const before = it.name; syncKwName(it);
-    if (it.name !== before) { const ni = card.querySelector('[data-k="name"]'); if (ni) { ni.value = it.name; ni.classList.toggle('need', !clean(it.name)); }
-      card.querySelectorAll('[data-qname]').forEach(c => c.classList.toggle('on', fmtName(it.name) === c.dataset.qname)); }
+    const before = it.name + '|' + it.pn; syncKwName(it);
+    if (it.name + '|' + it.pn !== before) fillNamePn(card, it);
   }
+  if (k==='name') { const before = it.pn; syncKwPn(it); if (it.pn !== before) fillNamePn(card, it); }
   if (k==='text') { it.recs = Model.predict(it.text, { vendor: it.vendor||null, big: it.vendor?S.vendorBig[it.vendor]:null, allowed:S.allowed, memo:S.memo }); }
   refreshOut(i);
 });
