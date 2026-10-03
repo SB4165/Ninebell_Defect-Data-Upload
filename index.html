@@ -213,8 +213,9 @@ const CONFIG = {
   VENDOR_ALIAS: { '브이피시스템':'VP시스템', '한국메카트로닉스':'한국메카' },   // 라벨·메시지 표기 → 귀책 목록 이름
   ACTIONS: [                              // 조치내용 드롭다운 (구글시트 칩 색상)
     ['방문조치','#fde79a'], ['업체반출','#f9cdc6'], ['자체처리','#d5ecbf'], ['정상진행','#c7e1f7'],
-    ['재발주','#e5d2f2'], ['입고요청','#ec9a96'], ['현물수정','#e5d2f2'], ['폐기','#e6e8eb']
-  ]
+    ['재발주','#e5d2f2'], ['입고요청','#ec9a96'], ['현물수정','#e5d2f2'], ['폐기','#e6e8eb'], ['확인필요','#fff8c5']
+  ],
+  ACT_ASK: '확인필요',                     // 이걸 고르면 양식·관리대장에는 '조치내용 : -' 로 표기
 };
 const MOCK = new URLSearchParams(location.search).has('mock');
 
@@ -633,7 +634,7 @@ function makeItem(p){
   const pt = projName ? projectType(projName, p.kw) : { type:'', list:[] };
   const it = {
     date: today(), proj: p.po ? 'SPARES_ACM' : projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
-    finder: p.finder || store.get('nc_finder',''), pub: IS_MOBILE ? store.get('nc_pub','') : '', name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
+    finder: p.finder || '', pub: IS_MOBILE ? store.get('nc_pub','') : '', name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
     qty: p.qty || '1', b:'', m:'', s:'', when:'', text: text.join(' / '), act:'', vendor: p.vendor || '', ps:'',
     nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '', vendorAsk: !!p.vendorAsk && !p.vendor,
     recs: [], manual:false
@@ -647,6 +648,7 @@ function recommend(it, apply){
   if (apply && !it.manual && it.recs[0]) [it.b, it.m, it.s] = it.recs[0].parts;
   else if (big && it.b !== big) { it.b = big; it.m = ''; it.s = ''; if (it.recs[0] && !it.manual) [it.b,it.m,it.s] = it.recs[0].parts; }
 }
+const actText = a => a === CONFIG.ACT_ASK ? '-' : (a || '');   // 확인필요 → '-'
 function formatText(it){
   return [
     `발견한 날짜 : ${it.date}`,
@@ -661,7 +663,7 @@ function formatText(it){
     `발생기인(소분류) : ${it.s}`,
     `발생시점 : ${it.when}`,
     `불량내용 : ${it.text}`,
-    `조치내용 : ${it.act}`,
+    `조치내용 : ${actText(it.act)}`,
     `귀책 : ${it.vendor}`,
     `P.S : ${it.ps}`
   ].join('\n');
@@ -772,7 +774,7 @@ function openDD(input){
   }
   dd.style.display = 'block';
 }
-function pickFinder(i, name){ const it = S.items[i]; it.finder = name; store.set('nc_finder', name); S.items.forEach((x,j)=>{ if (j!==i && !x.finder) x.finder = name; }); rerender(); }
+function pickFinder(i, name){ const it = S.items[i]; it.finder = name; refreshCard(i); }   // 발견자는 기억하지 않음 (건마다 메시지의 요청자 또는 직접 입력)
 function pickCombo(el, name){ const i = +el.closest('.card').dataset.i; return el.dataset.combo === 'finder' ? pickFinder(i, name) : pickVendor(i, name); }
 function pickVendor(i, name){
   const it = S.items[i]; it.vendor = name; it.manual = false; recommend(it, true); refreshCard(i);
@@ -824,7 +826,7 @@ cards.addEventListener('input', e => {
   it[k] = el.value;
   if (k!=='ps' && el.tagName==='INPUT') el.classList.toggle('need', !clean(el.value));
   if (k==='name') card.querySelectorAll('[data-qname]').forEach(c => c.classList.toggle('on', fmtName(el.value) === c.dataset.qname));
-  if (k==='finder') { store.set('nc_finder', el.value); openDD(el); }
+  if (k==='finder') { openDD(el); }
   if (k==='vendor') { openDD(el); if (S.vendorBig[el.value]) { /* 정확히 일치하면 바로 적용은 blur 시 */ } }
   if (k==='text') { it.recs = Model.predict(it.text, { vendor: it.vendor||null, big: it.vendor?S.vendorBig[it.vendor]:null, allowed:S.allowed, memo:S.memo }); }
   refreshOut(i);
@@ -921,7 +923,7 @@ function mockApi(a, d){   // 테스트(?mock=1)용 가짜 서버
 
 // 관리대장에 넣을 값 / 같은 건 판단용 지문 (양식 15줄 + 발행자까지 같으면 같은 건)
 const toF = it => ({ date: it.date, proj: it.proj, type: it.type, name: fmtName(it.name), pn: it.pn, qty: String(it.qty||'').replace(/\D/g,''),
-  vendor: it.vendor, b: it.b, m: it.m, s: it.s, when: it.when, finder: it.finder, pub: it.pub, text: it.text, act: it.act, ps: it.ps });
+  vendor: it.vendor, b: it.b, m: it.m, s: it.s, when: it.when, finder: it.finder, pub: it.pub, text: it.text, act: actText(it.act), ps: it.ps });
 async function fpOf(f){
   const t = ['date','proj','type','finder','name','pn','qty','b','m','s','when','text','act','vendor','ps','pub'].map(k => clean(f[k])).join('␞');
   const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
@@ -1100,6 +1102,7 @@ $('#delSynced').onclick = async () => {
   try { const r = await api('deleteSynced', {}, true); if (r) { toast('지웠어요'); loadLedger(); } } catch(err) { msg('오류', esc(err.message)); }
 };
 
+try { localStorage.removeItem('nc_finder'); } catch(e) {}   // 예전에 기억해 둔 발견자 지우기
 if (!IS_MOBILE) try { localStorage.removeItem('nc_pub'); } catch(e) {}   // PC(공용 PC 포함)는 발행자를 기억하지 않음 → 예전에 기억해 둔 값도 지움
 rerender();
 loadAll();
