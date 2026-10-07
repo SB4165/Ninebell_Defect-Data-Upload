@@ -541,7 +541,16 @@ async function loadAll(){
 
 /* ================== 메시지 해석 ================== */
 const NUM = /^\s*(?:\(?\d{1,2}\s*[.)\]]|[①-⑳]|[-*•·▶>])\s*/;
-const QTY = /(\d+)\s*(?:EA|ea|Ea|개|pcs|PCS|SET|set|세트)\b/;
+const QTY = /(\d+)\s*(?:ea|개|pcs|set|세트)(?![A-Za-z])/i;   // 2EA · 2 ea · 2개 · 2pcs · 2SET
+// 불량내용 안에 섞인 수량 표현 (예: '2EA 탭 누락', '탭 누락 2개', '탭 누락 수량 2')
+const QTY_IN = /수\s*량\s*[:：]?\s*(\d+)\s*(?:ea|개|pcs|set|세트)?(?![A-Za-z])|(\d+)\s*(?:ea|개|pcs|set|세트)(?![A-Za-z])/gi;
+// 불량내용에서 수량을 떼어 수량 칸으로: 수량 칸이 비었으면 첫 수량을 가져오고, 같은 숫자는 지움. 다른 숫자는 설명일 수 있어 그대로 둠
+function splitQty(cur){
+  cur.text = cur.text.map(t => t.replace(QTY_IN, (m, a, b) => { const n = String(+(a || b));
+    if (!cur.qty) { cur.qty = n; return ' '; }
+    return n === cur.qty ? ' ' : m; })
+    .replace(/\s{2,}/g,' ').replace(/^[\s,/:|·-]+|[\s,/:|·-]+$/g,'').trim()).filter(Boolean);
+}
 const PO_RE = /\bPO[-_][A-Z0-9][A-Z0-9_-]*/i;
 const KW  = s => /EFEM/i.test(s) ? 'EFEM' : /PROCESS|프로세스/i.test(s) ? 'PROCESS' : '';
 
@@ -599,7 +608,7 @@ function parseMessage(text){
   const lines = normMsg(text).split('\n');
   const items = []; let cur = null, lastNum = 0;
   const fresh = (inherit) => ({ proj: inherit?.proj || null, kw: inherit?.kw || '', po: inherit?.po || '', part: null, qty: '', text: [] , raw:[], vendor: '', vendorRaw: '', nameLines: [] });
-  const push = () => { if (cur && (cur.part || cur.text.length || cur.proj)) items.push(cur); };
+  const push = () => { if (cur) splitQty(cur); if (cur && (cur.part || cur.text.length || cur.proj)) items.push(cur); };
   for (let raw of lines) {
     if (!raw.trim()) { if (cur && (cur.part || cur.text.length)) { push(); cur = null; } continue; }
     const nm = raw.match(/^\s*\(?(\d{1,2})\s*[.)\]]/); const num = nm ? +nm[1] : 0;
@@ -1204,7 +1213,8 @@ $('#delSynced').onclick = async () => {
 };
 
 /* ================== 개선요청 탭 ================== */
-const REQ_STATUS = ['검토', '개발중', '적용완료', '적용불가'];
+const REQ_STATUS = ['검토', '작업중', '적용완료', '적용불가'];
+const REQ_OLD = { '개발중': '작업중' };   // 예전 이름 → 새 이름 (이미 등록된 요청도 새 이름으로 표시)
 const reqAuthors = () => (S.pubs || []).filter(n => !(CONFIG.REQ_EXCLUDE || []).includes(n));
 S.rq = []; S.rqAuthor = '';
 function renderReqForm(){
@@ -1218,14 +1228,14 @@ $('#rqText').addEventListener('input', () => $('#rqText').classList.toggle('need
 let rqBusy = false;
 async function loadReq(){
   if (rqBusy) return; rqBusy = true;
-  try { const r = await api('reqList'); S.rq = (r.items || []).sort((a,b) => b.no - a.no); renderReq(); }
+  try { const r = await api('reqList'); S.rq = (r.items || []).map(x => (REQ_OLD[x.status] ? Object.assign(x, { status: REQ_OLD[x.status] }) : x)).sort((a,b) => b.no - a.no); renderReq(); }
   catch(e) { $('#rqInfo').textContent = '연결 안 됨: ' + e.message; }
   finally { rqBusy = false; }
 }
 function renderReq(){
   const cnt = k => S.rq.filter(x => x.status === k).length;
   $('#rqInfo').textContent = `${S.rq.length}건 · ` + REQ_STATUS.map(k => `${k} ${cnt(k)}`).join(' · ') + ' · ' + new Date().toTimeString().slice(0,8) + ' 갱신';
-  const b = $('#reqBadge'), n = cnt('검토') + cnt('개발중'); b.style.display = n ? '' : 'none'; b.textContent = n;
+  const b = $('#reqBadge'), n = cnt('검토') + cnt('작업중'); b.style.display = n ? '' : 'none'; b.textContent = n;
   if (!S.rq.length) { $('#rqBody').innerHTML = '<tr><td colspan="6" class="mut" style="padding:24px">아직 등록된 요청이 없어요.</td></tr>'; return; }
   $('#rqBody').innerHTML = S.rq.map(x => { const si = Math.max(0, REQ_STATUS.indexOf(x.status));
     return `<tr data-id="${esc(x.id)}"><td>${x.no}</td><td>${esc(x.author)}</td><td class="wrap">${esc(x.text)}</td>
