@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="only light">
+<!-- 웹앱 설치 (홈 화면·바탕화면에 앱처럼 추가) -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f6f8fa">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="부적합 변환기">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>부적합 양식 변환기</title>
 <style>
 :root{
@@ -18,6 +27,9 @@ header{background:var(--bg2);border-bottom:1px solid var(--bd);padding:12px 16px
 .hwrap{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .logo{font-weight:600;font-size:16px;display:flex;align-items:center;gap:8px}
 .logo svg{flex:none}
+.instb{display:inline-flex;align-items:center;gap:5px;color:var(--btn);border-color:#9bd2ab;background:#fff}
+.instguide ol{margin:6px 0 0;padding-left:20px;line-height:1.8}
+@media (max-width:760px){ .instb{margin-left:auto;order:1} .hwrap .status{order:2} }
 .status{margin-left:auto;font-size:12px;color:var(--mut);display:flex;gap:6px;flex-wrap:wrap}
 .pill{border:1px solid var(--bd);border-radius:2em;padding:0 8px;background:var(--bg)}
 .pill.ok{color:var(--ok);border-color:var(--ok)} .pill.err{color:var(--err);border-color:var(--err)}
@@ -143,6 +155,8 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
 <header><div class="hwrap">
   <div class="logo"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688ZM7.5 7.75a.75.75 0 0 1 1.5 0v2.5a.75.75 0 0 1-1.5 0Zm.75 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>부적합 양식 변환기</div>
   <div class="status" id="status"></div>
+  <button type="button" class="btn sm instb" id="bInstall" style="display:none" title="홈 화면·바탕화면에 앱으로 추가">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg>앱 설치</button>
 </div></header>
 <nav class="tabs" id="tabs">
   <button type="button" data-tab="conv" class="on"><span class="tpre">부적합 </span>양식 변환기</button>
@@ -1259,6 +1273,30 @@ $('#rqBody').addEventListener('click', async e => {
     }
   } catch(err) { msg('오류', esc(err.message)); }
 });
+
+/* ================== 웹앱 설치 ================== */
+// 크롬·엣지·삼성 인터넷: 설치 창을 바로 띄움 / 아이폰·아이패드(사파리): 홈 화면에 추가 방법 안내
+// 메신저 안에서 열린 경우: 설치가 안 되므로 기본 브라우저로 여는 방법 안내 / 이미 앱으로 열었으면 버튼 숨김
+const PWA = { prompt: null };
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const UA = navigator.userAgent || '';
+const isIOS = /iPhone|iPad|iPod/.test(UA) || (/Mac/.test(navigator.platform || '') && navigator.maxTouchPoints > 1);
+const inApp = /KAKAOTALK|NAVER|Line\/|FBAN|FBAV|Instagram|DaumApps|; wv\)|Whale\/.*Mobile.*inapp/i.test(UA);
+function showInstall(){ $('#bInstall').style.display = isStandalone() ? 'none' : ''; }
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); PWA.prompt = e; showInstall(); });
+addEventListener('appinstalled', () => { PWA.prompt = null; $('#bInstall').style.display = 'none'; toast('앱으로 설치했어요'); });
+$('#bInstall').onclick = async () => {
+  if (PWA.prompt) { const p = PWA.prompt; PWA.prompt = null; p.prompt(); try { await p.userChoice; } catch(e) {} return; }
+  const guide = inApp
+    ? `<p>지금은 메신저 안에서 열려 있어 설치할 수 없어요.</p><ol><li>오른쪽 위(또는 아래) 메뉴 <b>⋮ / ···</b></li><li><b>다른 브라우저로 열기</b> (사파리·크롬)</li><li>열린 화면에서 다시 <b>[앱 설치]</b></li></ol>`
+    : isIOS
+    ? `<p>아이폰·아이패드는 <b>사파리</b>에서 추가해요.</p><ol><li>아래쪽(아이패드는 위쪽) <b>공유 버튼</b> <span style="font-size:15px">⬆︎</span></li><li><b>홈 화면에 추가</b></li><li>오른쪽 위 <b>추가</b></li></ol>`
+    : `<p>브라우저 메뉴에서 추가해요.</p><ol><li><b>크롬·엣지 (PC)</b>: 주소창 오른쪽의 설치 아이콘, 또는 메뉴 <b>⋮</b> → <b>앱 설치 / 이 사이트를 앱으로 설치</b></li><li><b>안드로이드 크롬·삼성 인터넷</b>: 메뉴 <b>⋮ / ≡</b> → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b></li></ol><p class="mut">설치 메뉴가 안 보이면 페이지를 새로고침한 뒤 다시 눌러 주세요.</p>`;
+  modal({ title:'앱으로 설치하기', body:`<div class="instguide">${guide}<p class="mut" style="margin-top:8px">설치하면 홈 화면·바탕화면 아이콘으로 바로 열려요. 수정된 내용은 자동으로 반영돼요.</p></div>` });
+};
+// 크롬 계열은 설치 창 신호를 기다리고, 아이폰·메신저 등은 안내용으로 바로 버튼 표시
+if (!isStandalone() && (isIOS || inApp || !('BeforeInstallPromptEvent' in window))) showInstall();
+if ('serviceWorker' in navigator && location.protocol !== 'file:') addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 
 try { localStorage.removeItem('nc_finder'); } catch(e) {}   // 예전에 기억해 둔 발견자 지우기
 if (!IS_MOBILE) try { localStorage.removeItem('nc_pub'); } catch(e) {}   // PC(공용 PC 포함)는 발행자를 기억하지 않음 → 예전에 기억해 둔 값도 지움
