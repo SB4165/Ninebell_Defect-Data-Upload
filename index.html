@@ -103,6 +103,16 @@ input.need::placeholder,textarea.need::placeholder{color:#8a4a40}
 /* 관리대장 탭 */
 .lbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
 .lbar input[type=date]{width:auto}
+/* 날짜 칸: 20261002 처럼 숫자만 쳐도 됨 + 달력 버튼 */
+.dbox{display:inline-flex;align-items:center;position:relative}
+.dbox input.dt{width:112px;border-top-right-radius:0;border-bottom-right-radius:0}
+.dbox .cal{height:32px;padding:0 8px;border:1px solid var(--bd);border-left:0;border-radius:0 6px 6px 0;background:var(--bg2);color:var(--mut);cursor:pointer;display:inline-flex;align-items:center}
+.dbox .cal:hover{color:var(--acc)}
+.dbox .calpick{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
+input.bad{border-color:#cf222e!important;background:#ffebe9}
+.lbar .selcnt{font-weight:600}
+table.led td.ck,table.led th.ck{width:28px;padding-right:0}
+table.led tr.sel td{background:#fff8c5}
 .btn.danger{color:var(--err);border-color:#f1aeb5}
 .twrap{overflow-x:auto;border:1px solid var(--bd);border-radius:6px;background:var(--bg)}
 table.led{border-collapse:collapse;font-size:12.5px;min-width:1500px;width:100%}
@@ -192,13 +202,14 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
     <div class="box-b" id="ledList">
       <div class="lbar">
         <span class="mut">발생일</span>
-        <input type="date" id="syncFrom"> <span class="mut">~</span> <input type="date" id="syncTo">
+        <span class="dbox"><input id="syncFrom" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span> <span class="mut">~</span> <span class="dbox"><input id="syncTo" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span>
         <button class="btn pri sm" id="syncRange">조건부 동기화</button>
         <button class="btn pri sm" id="syncAll">일괄 동기화</button>
-        <button class="btn sm danger" id="delSynced" style="margin-left:auto">동기화 완료건 일괄삭제</button>
+        <button class="btn sm danger" id="delSel" style="margin-left:auto" disabled>선택 삭제</button>
+        <button class="btn sm danger" id="delSynced">동기화 완료건 일괄삭제</button>
       </div>
       <div class="twrap"><table class="led"><thead><tr>
-        <th>No.</th><th>상태</th><th>발생일</th><th>발주 프로젝트명</th><th>TYPE / PO No.</th><th>품명</th><th>품번</th><th>수량</th><th>귀책업체</th>
+        <th class="ck"><input type="checkbox" id="ledAll" title="보이는 건 전체 선택"></th><th>No.</th><th>상태</th><th>발생일</th><th>발주 프로젝트명</th><th>TYPE / PO No.</th><th>품명</th><th>품번</th><th>수량</th><th>귀책업체</th>
         <th>대분류</th><th>중분류</th><th>소분류</th><th>구분</th><th>발견자</th><th>담당자(발행자)</th><th>불량내용</th><th>조치사항</th><th>비고</th><th>관리</th>
       </tr></thead><tbody id="ledBody"></tbody></table></div>
       <p class="mut" style="margin:8px 0 0">· 수정·삭제·동기화는 비밀번호가 필요해요 (한 번 입력하면 창을 닫을 때까지 유지) · 10초마다 자동 새로고침</p>
@@ -206,7 +217,7 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
     <div class="box-b" id="ledHist" style="display:none">
       <div class="lbar">
         <select id="hBasis"><option value="created">등록일</option><option value="date">발생일</option></select>
-        <input type="date" id="hFrom"> <span class="mut">~</span> <input type="date" id="hTo">
+        <span class="dbox"><input id="hFrom" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span> <span class="mut">~</span> <span class="dbox"><input id="hTo" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span>
         <select id="hStat"><option value="">상태 전체</option><option value="wait">대기</option><option value="dirty">수정됨</option><option value="synced">동기화 완료</option><option value="deleted">사이트에서 삭제</option><option value="gone">시트에서 삭제됨</option></select>
         <input class="hq" id="hQ" placeholder="품번·품명·발행자·불량내용·고유번호 검색 (초성 가능)">
         <button class="btn sm" id="hReset">초기화</button>
@@ -1137,13 +1148,79 @@ async function loadLedger(){
 function renderLedger(){
   const pend = S.led.filter(x => !x.synced || x.dirty).length, b = $('#ledBadge');
   b.style.display = pend ? '' : 'none'; b.textContent = pend;
-  if (!S.led.length) { $('#ledBody').innerHTML = '<tr><td colspan="19" class="mut" style="padding:24px">아직 올라온 건이 없어요. 변환기 탭에서 [복사] → [예]를 누르면 여기에 쌓여요.</td></tr>'; return; }
-  $('#ledBody').innerHTML = S.led.map((x, i) => { const f = x.f, st = x.dirty ? '<span class="st dirty">수정됨</span>' : x.synced ? '<span class="st done">동기화 완료</span>' : '<span class="st wait">대기</span>';
-    return `<tr class="${x.synced && !x.dirty ? 'done' : ''}" data-id="${esc(x.id)}"><td>${i+1}</td><td>${st}</td><td>${esc(f.date)}</td><td>${esc(f.proj)}</td><td>${esc(f.type)}</td><td>${esc(f.name)}</td><td>${esc(f.pn)}</td><td>${esc(f.qty)}</td><td>${esc(f.vendor)}</td>
+  const ids = new Set(S.led.map(x => x.id)); [...S.ledSel].forEach(id => { if (!ids.has(id)) S.ledSel.delete(id); });   // 지워진 건은 선택에서 뺌
+  const rows = ledRows(); S.ledShown = rows;
+  updSel();
+  if (!S.led.length) { $('#ledBody').innerHTML = '<tr><td colspan="20" class="mut" style="padding:24px">아직 올라온 건이 없어요. 변환기 탭에서 [복사] → [예]를 누르면 여기에 쌓여요.</td></tr>'; return; }
+  if (!rows.length) { $('#ledBody').innerHTML = '<tr><td colspan="20" class="mut" style="padding:24px">이 기간(발생일)에 해당하는 건이 없어요.</td></tr>'; return; }
+  $('#ledBody').innerHTML = rows.map((x, i) => { const f = x.f, st = x.dirty ? '<span class="st dirty">수정됨</span>' : x.synced ? '<span class="st done">동기화 완료</span>' : '<span class="st wait">대기</span>', on = S.ledSel.has(x.id);
+    return `<tr class="${x.synced && !x.dirty ? 'done' : ''}${on ? ' sel' : ''}" data-id="${esc(x.id)}"><td class="ck"><input type="checkbox" data-sel${on ? ' checked' : ''}></td><td>${i+1}</td><td>${st}</td><td>${esc(f.date)}</td><td>${esc(f.proj)}</td><td>${esc(f.type)}</td><td>${esc(f.name)}</td><td>${esc(f.pn)}</td><td>${esc(f.qty)}</td><td>${esc(f.vendor)}</td>
       <td>${esc(f.b)}</td><td>${esc(f.m)}</td><td>${esc(f.s)}</td><td>${esc(f.when)}</td><td>${esc(f.finder)}</td><td>${esc(f.pub)}</td><td class="wrap">${esc(f.text)}</td><td>${esc(f.act)}</td><td class="wrap">${esc(f.ps)}</td>
       <td><button class="btn sm" data-ed>수정</button> <button class="btn sm danger" data-rm>삭제</button></td></tr>`; }).join('');
 }
 $('#ledRefresh').onclick = () => S.ledView === 'hist' ? loadHist() : loadLedger();
+// 대기 목록: 발생일 기간을 넣으면 그 기간 건만 보임 (조건부 동기화 대상과 같음)
+S.ledSel = new Set(); S.ledShown = [];
+function ledRows(){
+  const f0 = ymdOf($('#syncFrom').value), t0 = ymdOf($('#syncTo').value);
+  if (!f0 && !t0) return S.led;
+  return S.led.filter(x => { const d = ymdOf(x.f.date); return d && (!f0 || d >= f0) && (!t0 || d <= t0); });
+}
+function updSel(){
+  const n = S.ledSel.size, b = $('#delSel'); b.disabled = !n; b.textContent = n ? `선택 삭제 (${n}건)` : '선택 삭제';
+  const shown = S.ledShown || [], k = shown.filter(x => S.ledSel.has(x.id)).length, all = $('#ledAll');
+  all.checked = !!shown.length && k === shown.length; all.indeterminate = k > 0 && k < shown.length;
+}
+$('#ledBody').addEventListener('change', e => {
+  const cb = e.target.closest('[data-sel]'); if (!cb) return; const tr = cb.closest('tr[data-id]');
+  cb.checked ? S.ledSel.add(tr.dataset.id) : S.ledSel.delete(tr.dataset.id); tr.classList.toggle('sel', cb.checked); updSel();
+});
+$('#ledAll').addEventListener('change', e => { (S.ledShown || []).forEach(x => e.target.checked ? S.ledSel.add(x.id) : S.ledSel.delete(x.id)); renderLedger(); });
+$('#delSel').onclick = async () => {
+  const sel = S.led.filter(x => S.ledSel.has(x.id)); if (!sel.length) return;
+  const syn = sel.filter(x => x.synced).length;
+  if (!await modal({ title:`선택한 ${sel.length}건을 삭제할까요?`, body:`<p>관리대장 탭에서만 지워져요.${syn ? ` 이 중 ${syn}건은 이미 동기화돼서 구글시트 행은 그대로 남아요.` : ''}</p><p class="mut">${sel.slice(0,5).map(x => esc(x.f.date + ' · ' + x.f.pn)).join('<br>')}${sel.length > 5 ? `<br>외 ${sel.length - 5}건` : ''}</p>`, buttons:[{label:'취소', value:false},{label:'삭제', value:true, cls:'pri'}] })) return;
+  try { const r = await api('delete', { ids: sel.map(x => x.id) }, true); if (r) { S.ledSel.clear(); toast(`${sel.length}건 삭제했어요`); loadLedger(); } }
+  catch(err) { msg('오류', esc(err.message)); }
+};
+
+/* ---------- 날짜 칸: 20261002 · 2026.10.2 · 261002 · 1002(올해) → 2026.10.02 ---------- */
+function normDate(v){
+  v = String(v || '').trim(); if (!v) return '';
+  const Y = new Date().getFullYear(); let y, m, d, g;
+  if ((g = v.match(/^(\d{4})(\d{2})(\d{2})$/))) [, y, m, d] = g;
+  else if ((g = v.match(/^(\d{2})(\d{2})(\d{2})$/))) { [, y, m, d] = g; y = '20' + y; }
+  else if ((g = v.match(/^(\d{2})(\d{2})$/))) { [, m, d] = g; y = Y; }
+  else { const p = v.split(/\D+/).filter(Boolean);
+    if (p.length === 3 && /^\d{2}(\d{2})?$/.test(p[0])) [y, m, d] = [p[0].length === 2 ? '20' + p[0] : p[0], p[1], p[2]];
+    else if (p.length === 2) [y, m, d] = [Y, p[0], p[1]];
+    else return null; }
+  y = +y; m = +m; d = +d; const dt = new Date(y, m - 1, d);
+  if (!(m >= 1 && m <= 12 && dt.getMonth() === m - 1 && dt.getDate() === d)) return null;
+  return `${y}.${two(m)}.${two(d)}`;
+}
+// 날짜 칸 연결: 8자리를 다 치면 바로 적용, 짧게 친 것(1002, 10.2)은 칸을 벗어나거나 Enter 때 적용
+function dateInput(el, onChange){
+  let last = el.value;
+  const fire = () => { if (el.value !== last) { last = el.value; onChange && onChange(); } };
+  const apply = full => { const v = el.value.trim();
+    if (!v) { el.classList.remove('bad'); return fire(); }
+    const n = normDate(v);
+    if (n) { el.value = n; el.classList.remove('bad'); return fire(); }
+    if (full) el.classList.add('bad'); };
+  el.addEventListener('input', () => { el.classList.remove('bad'); const v = el.value.trim();
+    if (!v || /^\d{8}$/.test(v) || /^\d{4}\D+\d{1,2}\D+\d{2}$/.test(v)) apply(false); });
+  el.addEventListener('blur', () => apply(true));
+  el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); apply(true); } });
+  const box = el.closest('.dbox'); if (!box) return;
+  const pk = box.querySelector('.calpick');
+  box.querySelector('.cal').addEventListener('click', () => {   // 달력: 칸의 날짜, 없으면 오늘(올해)에서 열림
+    const d = ymdOf(el.value), t = new Date(); pk.value = d ? `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6)}` : `${t.getFullYear()}-${two(t.getMonth()+1)}-${two(t.getDate())}`;
+    try { pk.showPicker(); } catch (e) { pk.style.pointerEvents = 'auto'; pk.focus(); pk.click(); }
+  });
+  pk.addEventListener('change', () => { if (pk.value) { el.value = pk.value.replace(/-/g, '.'); el.classList.remove('bad'); fire(); } pk.style.pointerEvents = ''; });
+}
+dateInput($('#syncFrom'), renderLedger); dateInput($('#syncTo'), renderLedger);
 
 /* ---------- 이력 보기 (비밀번호 없음) ---------- */
 S.ledView = 'list'; S.hist = [];
@@ -1198,7 +1275,8 @@ function renderHist(){
     return `<tr class="${r.status === 'deleted' ? 'done' : ''}"><td>${S.hist.length - S.hist.indexOf(r)}</td><td>${esc(r.id)}</td><td>${esc(fmtTs(r.created))}</td><td>${site}</td><td>${sheet}</td><td>${esc(f.date)}</td><td>${esc(f.proj)}</td><td>${esc(f.type)}</td><td>${esc(f.name)}</td><td>${esc(f.pn)}</td><td>${esc(f.qty)}</td><td>${esc(f.vendor)}</td>
       <td>${esc([f.b, f.m, f.s].filter(Boolean).join(' > '))}</td><td>${esc(f.when)}</td><td>${esc(f.finder)}</td><td>${esc(f.pub)}</td><td class="wrap">${esc(f.text)}</td><td>${esc(f.act)}</td><td class="wrap">${esc(f.ps)}</td><td class="log">${log}</td></tr>`; }).join('');
 }
-['#hBasis','#hFrom','#hTo','#hStat'].forEach(id => $(id).addEventListener('change', renderHist));
+['#hBasis','#hStat'].forEach(id => $(id).addEventListener('change', renderHist));
+dateInput($('#hFrom'), renderHist); dateInput($('#hTo'), renderHist);
 $('#hQ').addEventListener('input', renderHist);
 $('#hQ').addEventListener('blur', renderHist);
 $('#hReset').onclick = () => { $('#hBasis').value = 'created'; $('#hFrom').value = $('#hTo').value = $('#hStat').value = $('#hQ').value = ''; renderHist(); };
@@ -1245,6 +1323,7 @@ async function editRow(x){
     const fill = (el, arr) => { el.innerHTML = arr.map(v=>`<option>${esc(v)}</option>`).join(''); };
     g('b').onchange = () => { fill(g('m'), Object.keys(S.tree[g('b').value]||{})); fill(g('s'), (S.tree[g('b').value]||{})[g('m').value]||[]); };
     g('m').onchange = () => fill(g('s'), (S.tree[g('b').value]||{})[g('m').value]||[]);
+    dateInput(g('date'));   // 발생일: 20261002 처럼 쳐도 2026.10.02 로
     projCombo(g('proj'), t => { if (t) g('type').value = t; });   // 발주 프로젝트명: 목록 검색, 고르면 TYPE도 채움
     listCombo(g('pn'), partDDHtml, '품번 검색 (2글자부터)', n => { if (n) g('name').value = n; });   // 품번: 고르면 품명도 채움
     modal.lastForm = m;
@@ -1260,6 +1339,7 @@ async function editRow(x){
 async function doSync(range){
   const from = range ? $('#syncFrom').value : '', to = range ? $('#syncTo').value : '';
   if (range && !from && !to) return msg('기간을 정해 주세요', '조건부 동기화는 발생일 시작일이나 종료일 중 하나 이상을 정해야 해요.');
+  if (range && [from, to].some(v => v && !normDate(v))) return msg('날짜를 확인해 주세요', '발생일 기간에 날짜가 아닌 값이 있어요. 예: 20261002');
   const ymd = s => String(s||'').replace(/\D/g,'');
   const tg = S.led.filter(x => (!x.synced || x.dirty) && (!from || ymd(x.f.date) >= ymd(from)) && (!to || ymd(x.f.date) <= ymd(to)));
   if (!tg.length) return msg('동기화할 건이 없어요', '대기 중이거나 수정된 건이 없어요.');
