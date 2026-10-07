@@ -798,7 +798,7 @@ function renderCard(it, i){
       <div class="form">
         ${warn.map(w=>`<p class="warn">${esc(w)}</p>`).join('')}
         ${f('발견한 날짜', inp('date'))}
-        ${f('프로젝트 발주명', inp('proj'))}
+        ${f('프로젝트 발주명', `<div class="combo"><input data-k="proj" data-combo="proj" value="${esc(it.proj)}" placeholder="입력 필요 · 프로젝트 검색 (예: ECP3)" autocomplete="off" class="${nd(it.proj)}"><div class="dd"></div></div>`)}
         ${f('장비타입', it.types.length>1 ? `<select data-k="type">${opt([it.type,...it.types].filter(Boolean), it.type)}</select>` : inp('type'))}
         ${f('발견자', `<div class="combo"><input data-k="finder" data-combo="finder" value="${esc(it.finder)}" placeholder="입력 필요 · 초성 검색 (예: ㄱㅅㅂ)" autocomplete="off" class="${nd(it.finder)}"><div class="dd"></div></div>`)}
         ${f('품명', `<input data-k="name" value="${esc(it.name)}" placeholder="입력 필요" class="${nd(it.name)}">`)}
@@ -831,7 +831,11 @@ let ptrDown = false; const pendingCards = new Set();
 document.addEventListener('pointerdown', () => { ptrDown = true; }, true);
 document.addEventListener('pointerup', () => setTimeout(() => { ptrDown = false; const l = [...pendingCards]; pendingCards.clear(); l.forEach(drawCard); }, 0), true);
 document.addEventListener('pointercancel', () => { ptrDown = false; }, true);
-function drawCard(i){ const el = document.querySelector(`.card[data-i="${i}"]`); if (!el || !S.items[i]) return; const tmp = document.createElement('div'); tmp.innerHTML = renderCard(S.items[i], i); el.replaceWith(tmp.firstElementChild); }
+function drawCard(i){
+  const q = () => document.querySelector(`.card[data-i="${i}"]`); let el = q(); if (!el || !S.items[i]) return;
+  // 입력 중인 칸이 있으면 먼저 확정(blur)한 뒤 다시 그림 — 키보드로 목록을 고를 때 생기던 오류 방지
+  const a = document.activeElement; if (a && el.contains(a)) { a.blur(); el = q(); if (!el) return; }
+  const tmp = document.createElement('div'); tmp.innerHTML = renderCard(S.items[i], i); el.replaceWith(tmp.firstElementChild); }
 function refreshCard(i){ if (ptrDown) { pendingCards.add(i); return; } drawCard(i); }
 function refreshOut(i){ document.querySelector(`.card[data-i="${i}"] [data-out]`).textContent = formatText(S.items[i]); }
 
@@ -861,9 +865,19 @@ function nameMatches(q, names){
     if (!qq) return 1; if (l.startsWith(qq)) return 4; if (l.includes(qq)) return 3; if (c.startsWith(qc)) return 2; if (c.includes(qc)) return 1; return 0; };
   return names.map(n=>({n,s:score(n)})).filter(x=>x.s>=1).sort((a,b)=>b.s-a.s || ko(a.n,b.n)).slice(0,30).map(x=>x.n);
 }
+// 프로젝트 검색: 띄어쓰기·하이픈·대소문자 무시. 앞부분 일치 > 포함, 최대 30개 (TYPE을 옆에 표시)
+const pkey = s => key(s).replace(/[-_.·]/g,'');
+function projMatches(q){
+  const qk = pkey(q), seen = new Set();
+  return S.proj.map(p => { const n = pkey(p.name); return { p, s: !qk ? 1 : n.startsWith(qk) ? 3 : n.includes(qk) ? 2 : 0 }; })
+    .filter(x => x.s && !seen.has(x.p.name + '|' + x.p.type) && seen.add(x.p.name + '|' + x.p.type))
+    .sort((a,b) => b.s - a.s || ko(a.p.name, b.p.name)).slice(0,30).map(x => x.p);
+}
+const projDDHtml = q => projMatches(q).map((p,j)=>`<div data-v="${esc(p.name)}" data-t="${esc(p.type)}" class="${j===0?'act':''}">${esc(p.name)}<small>${esc(p.type)}</small></div>`).join('') || '<div><small>목록에 없음 — 그대로 입력돼요</small></div>';
 function openDD(input){
   const card = input.closest('.card'), it = S.items[+card.dataset.i], dd = input.nextElementSibling;
-  if (input.dataset.combo === 'finder') {
+  if (input.dataset.combo === 'proj') dd.innerHTML = projDDHtml(input.value);
+  else if (input.dataset.combo === 'finder') {
     const list = nameMatches(input.value, S.finders);
     dd.innerHTML = list.map((n,j)=>`<div data-v="${esc(n)}" class="${j===0?'act':''}">${esc(n)}</div>`).join('') || '<div><small>명단에 없음 — 그대로 입력돼요</small></div>';
   } else {
@@ -873,7 +887,12 @@ function openDD(input){
   dd.style.display = 'block';
 }
 function pickFinder(i, name){ const it = S.items[i]; it.finder = name; refreshCard(i); }   // 발견자는 기억하지 않음 (건마다 메시지의 요청자 또는 직접 입력)
-function pickCombo(el, name){ const i = +el.closest('.card').dataset.i; return el.dataset.combo === 'finder' ? pickFinder(i, name) : pickVendor(i, name); }
+function pickCombo(el, name, type){ const i = +el.closest('.card').dataset.i; return el.dataset.combo === 'proj' ? pickProj(i, name, type) : el.dataset.combo === 'finder' ? pickFinder(i, name) : pickVendor(i, name); }
+// 프로젝트를 목록에서 고르면 장비타입도 같이 채움 (같은 프로젝트에 TYPE이 여러 개면 고른 것으로)
+function pickProj(i, name, type){
+  const it = S.items[i], pt = projectType(name, '');
+  it.proj = name; it.projPick = name; it.type = type || pt.type || it.type; it.types = pt.list; it.projUnknown = false; refreshCard(i);
+}
 function pickVendor(i, name){
   const it = S.items[i]; it.vendor = name; it.manual = false; recommend(it, true); refreshCard(i);
 }
@@ -911,7 +930,7 @@ cards.addEventListener('click', e => {
   if (ac) { it.act = it.act === ac.dataset.actv ? '' : ac.dataset.actv; return refreshCard(i); }   // 다시 누르면 해제
   const chip = e.target.closest('[data-rec]');
   if (chip) { [it.b,it.m,it.s] = it.recs[+chip.dataset.rec].parts; it.manual = true; return refreshCard(i); }
-  const dv = e.target.closest('.dd [data-v]'); if (dv) return pickCombo(dv.closest('.combo').querySelector('input'), dv.dataset.v);
+  const dv = e.target.closest('.dd [data-v]'); if (dv) return pickCombo(dv.closest('.combo').querySelector('input'), dv.dataset.v, dv.dataset.t);
 });
 cards.addEventListener('input', e => {
   const el = e.target, card = el.closest('.card'); if (!card || !el.dataset.k) return;
@@ -924,7 +943,7 @@ cards.addEventListener('input', e => {
   it[k] = el.value;
   if (k!=='ps' && el.tagName==='INPUT') el.classList.toggle('need', !clean(el.value));
   if (k==='name') card.querySelectorAll('[data-qname]').forEach(c => c.classList.toggle('on', fmtName(el.value) === c.dataset.qname));
-  if (k==='finder') { openDD(el); }
+  if (k==='finder' || k==='proj') { openDD(el); }
   if (k==='vendor') { openDD(el); if (S.vendorBig[el.value]) { /* 정확히 일치하면 바로 적용은 blur 시 */ } }
   if (k==='text') {   // Proposal·SCS 자동 품명: 입력하는 동안 바로 반영 (칸을 벗어나지 않아도)
     const before = it.name + '|' + it.pn; syncKwName(it);
@@ -943,7 +962,9 @@ cards.addEventListener('change', e => {
   if (k==='m') { it.m = el.value; it.s=''; it.manual = true; const r = it.recs.find(x=>x.parts[0]===it.b && x.parts[1]===it.m); if (r) it.s = r.parts[2]; return refreshCard(i); }
   if (k==='s') { it.s = el.value; it.manual = true; return refreshCard(i); }
   if (k==='text') { syncKwName(it); if (!it.manual) recommend(it, true); return refreshCard(i); }
-  if (k==='proj') { const pj = findProject(it.proj); const pt = projectType(pj?.name || it.proj, KW(it.proj) || ''); it.type = pt.type || it.type; it.types = pt.list; it.projUnknown = !pt.type; return refreshCard(i); }
+  // 프로젝트를 직접 쳤을 때만 TYPE 맞춤. 목록을 눌러 고르는 중이면(칸을 벗어나며 change가 먼저 옴) 고른 값이 우선 → 잠깐 기다렸다 확인
+  if (k==='proj') { setTimeout(() => { const j = S.items.indexOf(it); if (j < 0 || (it.projPick && it.projPick === it.proj)) return;
+    const pj = findProject(it.proj); const pt = projectType(pj?.name || it.proj, KW(it.proj) || ''); it.type = pt.type || it.type; it.types = pt.list; it.projUnknown = !pt.type; refreshCard(j); }, 250); return; }
   if (k==='pn') { const p = S.parts.get(key(it.pn)); if (p) { if (!kwName(it.text)) it.name = fmtName(p.name); it.partUnknown = false; } return refreshCard(i); }
   refreshOut(i);
 });
@@ -951,7 +972,7 @@ cards.addEventListener('keydown', e => {
   const el = e.target; if (!el.hasAttribute('data-combo')) return;
   const dd = el.nextElementSibling, items = [...dd.querySelectorAll('[data-v]')]; let a = items.findIndex(x=>x.classList.contains('act'));
   if (e.key==='ArrowDown'||e.key==='ArrowUp') { e.preventDefault(); if(!items.length) return; items[a]?.classList.remove('act'); a = (a + (e.key==='ArrowDown'?1:-1) + items.length) % items.length; items[a].classList.add('act'); items[a].scrollIntoView({block:'nearest'}); }
-  if (e.key==='Enter') { e.preventDefault(); const pick = items[a] || items[0]; if (pick) pickCombo(el, pick.dataset.v); }
+  if (e.key==='Enter') { e.preventDefault(); const pick = items[a] || items[0]; if (pick) pickCombo(el, pick.dataset.v, pick.dataset.t); }
   if (e.key==='Escape') dd.style.display='none';
 });
 cards.addEventListener('focusin', e => { if (e.target.hasAttribute('data-combo')) openDD(e.target); });
@@ -1168,6 +1189,24 @@ $('#ledBody').addEventListener('click', async e => {
     if (e.target.closest('[data-ed]')) editRow(x);
   } catch(err) { msg('오류', esc(err.message)); }
 });
+// 카드 밖(관리대장 수정 창)의 입력칸에 프로젝트 검색 목록 붙이기
+function projCombo(input, onPick){
+  const wrap = document.createElement('div'); wrap.className = 'combo'; input.replaceWith(wrap); wrap.appendChild(input);
+  const dd = document.createElement('div'); dd.className = 'dd'; wrap.appendChild(dd);
+  input.placeholder = '프로젝트 검색 (예: ECP3)'; input.autocomplete = 'off';
+  const show = () => { dd.innerHTML = projDDHtml(input.value); dd.style.display = 'block'; };
+  const pick = d => { if (!d || !d.dataset.v) return; input.value = d.dataset.v; dd.style.display = 'none'; onPick && onPick(d.dataset.t); };
+  input.addEventListener('focus', show); input.addEventListener('input', show);
+  dd.addEventListener('mousedown', e => { e.preventDefault(); pick(e.target.closest('[data-v]')); });
+  input.addEventListener('keydown', e => {
+    if (dd.style.display !== 'block') return;
+    const items = [...dd.querySelectorAll('[data-v]')]; let a = items.findIndex(x => x.classList.contains('act'));
+    if (e.key==='ArrowDown'||e.key==='ArrowUp') { e.preventDefault(); if (!items.length) return; items[a]?.classList.remove('act'); a = (a + (e.key==='ArrowDown'?1:-1) + items.length) % items.length; items[a].classList.add('act'); items[a].scrollIntoView({block:'nearest'}); }
+    if (e.key==='Enter') { e.preventDefault(); e.stopPropagation(); pick(items[a] || items[0]); }
+    if (e.key==='Escape') { e.stopPropagation(); dd.style.display = 'none'; }
+  });
+  input.addEventListener('blur', () => setTimeout(() => dd.style.display = 'none', 150));
+}
 async function editRow(x){
   const f = { ...x.f };
   const inpE = (k, lab, extra='') => `<label>${lab}</label><input data-e="${k}" value="${esc(f[k])}" ${extra}>`;
@@ -1182,6 +1221,7 @@ async function editRow(x){
     const fill = (el, arr) => { el.innerHTML = arr.map(v=>`<option>${esc(v)}</option>`).join(''); };
     g('b').onchange = () => { fill(g('m'), Object.keys(S.tree[g('b').value]||{})); fill(g('s'), (S.tree[g('b').value]||{})[g('m').value]||[]); };
     g('m').onchange = () => fill(g('s'), (S.tree[g('b').value]||{})[g('m').value]||[]);
+    projCombo(g('proj'), t => { if (t) g('type').value = t; });   // 발주 프로젝트명: 목록 검색, 고르면 TYPE도 채움
     modal.lastForm = m;
   };
   const ok = await modal({ title:'관리대장 건 수정', body, wide:true, buttons:[{label:'취소', value:false},{label:'저장', value:true, cls:'pri'}] });
