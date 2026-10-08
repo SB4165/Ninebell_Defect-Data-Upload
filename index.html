@@ -53,6 +53,12 @@ textarea:focus,input:focus,select:focus{outline:2px solid var(--acc);outline-off
 .mut{color:var(--mut);font-size:12px}
 .finder{width:auto;flex:1;min-width:140px;max-width:220px}
 .card{border:1px solid var(--bd);border-radius:6px;margin-bottom:16px;background:var(--bg)}
+.card.grp{border-left:4px solid #8250df}
+.grpbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 12px;background:#fbefff;border-bottom:1px solid #e3c8f7;border-radius:6px 6px 0 0;font-size:13px}
+.grpbar label{display:flex;align-items:center;gap:4px;color:var(--mut);cursor:pointer}
+.grpbar label input{width:auto;margin:0}
+.grpbar .gsp{flex:1}
+.gtag{display:inline-block;margin-right:6px;padding:1px 7px;border-radius:999px;background:#fbefff;color:#8250df;font-size:12px;font-weight:600;vertical-align:1px}
 .card .box-h{justify-content:space-between}
 .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0}
 .form{padding:12px;border-right:1px solid var(--bd2)}
@@ -622,11 +628,27 @@ function normMsg(text){
   t = t.replace(new RegExp('\\s*[/|]\\s*(?=(?:' + LABEL + ')\\s*[:：])', 'gi'), '\n');
   return t;
 }
+const splitList = v => String(v).split(/\s*[,，、]\s*/).map(x => x.trim()).filter(Boolean);
+// 한 메시지에 프로젝트·품번이 여러 개면 모든 조합으로 건을 나눔 (관리대장에는 건마다 한 줄). 같은 메시지에서 나온 건은 묶음(grp)
+let GRP_SEQ = 0;
+function expandMulti(c){
+  const P = c.projList || [null], N = c.partList || [null];
+  if (P.length < 2 && N.length < 2) { if (c.qtyList) c.qtyWarn = true; return [c]; }
+  const pairs = []; P.forEach(p => N.forEach(n => pairs.push([p, n])));
+  const g = 'G' + (++GRP_SEQ), q = c.qtyList, qtyBad = !!q && q.length !== pairs.length;
+  return pairs.map(([p, n], i) => {
+    const x = { ...c, text: [...c.text], projList: null, partList: null, qtyList: null, grp: g, qtyWarn: qtyBad };
+    if (p) { x.po = p.po || ''; x.proj = p.po ? null : p.proj; }
+    if (n) x.part = n;
+    x.qty = q ? (q[i] || q[0]) : c.qty;
+    return x;
+  });
+}
 function parseMessage(text){
   const lines = normMsg(text).split('\n');
   const items = []; let cur = null, lastNum = 0;
   const fresh = (inherit) => ({ proj: inherit?.proj || null, kw: inherit?.kw || '', po: inherit?.po || '', part: null, qty: '', text: [] , raw:[], vendor: '', vendorRaw: '', nameLines: [] });
-  const push = () => { if (cur) splitQty(cur); if (cur && (cur.part || cur.text.length || cur.proj)) items.push(cur); };
+  const push = () => { if (cur) splitQty(cur); if (cur && (cur.part || cur.text.length || cur.proj)) items.push(...expandMulti(cur)); };
   for (let raw of lines) {
     if (!raw.trim()) { if (cur && (cur.part || cur.text.length)) { push(); cur = null; } continue; }
     const nm = raw.match(/^\s*\(?(\d{1,2})\s*[.)\]]/); const num = nm ? +nm[1] : 0;
@@ -642,18 +664,21 @@ function parseMessage(text){
     if (lab) {
       const k = lab[1].replace(/\s/g,''), val = lab[2].trim();
       if (!val) continue;                                  // '3. 수량 : ' 처럼 비어 있으면 건너뜀
-      if (/^(프로젝트|발주명)/.test(k)) {
-        const po = val.match(PO_RE);
-        if (po) cur.po = po[0].toUpperCase();
-        else cur.proj = findProject(val) || { name: val.toUpperCase(), raw: val, unknown: true };
+      if (/^(프로젝트|발주명)/.test(k)) {   // 'ECP248, ECP263' 처럼 여러 개면 목록으로 (나중에 건별로 나눔)
+        const list = splitList(val).map(v => { const po = v.match(PO_RE); return po ? { po: po[0].toUpperCase() } : { proj: findProject(v) || { name: v.toUpperCase(), raw: v, unknown: true } }; });
+        if (list[0].po) cur.po = list[0].po; else cur.proj = list[0].proj;
+        cur.projList = list.length > 1 ? list : null;
       }
-      else if (k === '품번') {
-        const pt = findParts(val)[0] || { pn: val.toUpperCase(), name: '', raw: val, unknown: true };
-        if (cur.part && cur.part.pn !== pt.pn) { push(); cur = fresh(cur); }
-        cur.part = pt;
+      else if (k === '품번') {   // 'A, , B' 처럼 여러 개면 목록으로 (빈 칸은 무시)
+        const list = splitList(val).map(v => findParts(v)[0] || { pn: v.toUpperCase(), name: '', raw: v, unknown: true });
+        if (cur.part && cur.part.pn !== list[0].pn) { push(); cur = fresh(cur); }
+        cur.part = list[0]; cur.partList = list.length > 1 ? list : null;
       }
       else if (/^(품명|partname)$/i.test(k)) cur.nameLines.push(val);
-      else if (k === '수량') { const q = val.match(/\d+/); if (q) cur.qty = String(+q[0]); }
+      else if (k === '수량') {   // '각 1 EA' → 모두 1, '1 EA, 2EA' → 건 순서대로
+        const ns = (val.match(/\d+/g) || []).map(n => String(+n));
+        if (ns.length) { cur.qty = ns[0]; cur.qtyList = ns.length > 1 && !/각/.test(val) ? ns : null; }
+      }
       else if (k === '불량내용') cur.text.push(val);
       else if (/^(요청자|발견자)$/.test(k)) cur.finder = val;
       else if (ASK_RE.test(val.replace(/\s/g,'') ) || ASK_RE.test(val)) { cur.vendor = ''; cur.vendorAsk = true; }   // 귀책 확인요청 → 귀책 비워 둠
@@ -745,10 +770,11 @@ function makeItem(p){
     finder: p.finder || '', pub: IS_MOBILE ? store.get('nc_pub','') : '', name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
     qty: p.qty || '1', b:'', m:'', s:'', when:'', text: text.join(' / '), act:'', vendor: p.vendor || '', ps:'',
     nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '', vendorAsk: !!p.vendorAsk && !p.vendor,
-    recs: [], manual:false
+    recs: [], manual:false, grp: p.grp || '', qtyWarn: !!p.qtyWarn
   };
   syncKwName(it);
   recommend(it, true);
+  shSnap(it);
   return it;
 }
 function recommend(it, apply){
@@ -800,6 +826,7 @@ function renderCard(it, i){
     ? `메시지의 품명 '${it.nameWarn}'은(는) 품번이 시트에 없어 확인할 수 없어서 넣지 않았어요`
     : `메시지의 품명 '${it.nameWarn}'은(는) 이 품번의 시트 품명과 달라서 넣지 않았어요`);
   if (it.vendorAsk && !it.vendor) warn.push('제조팀이 귀책 확인을 요청했어요. 귀책을 확인해서 골라 주세요');
+  if (it.qtyWarn) warn.push('메시지의 수량 개수가 나뉜 건수와 달라요 — 수량을 확인해 주세요');
   if (it.vendorWarn && !it.vendor) warn.push(`메시지의 업체 '${it.vendorWarn}'을(를) 귀책 목록에서 찾지 못했어요`);
   }
   const top = it.recs[0];
@@ -808,8 +835,12 @@ function renderCard(it, i){
   // P.S 외에 비어 있는 칸은 분홍색으로 '입력 필요' 표시
   const nd = v => clean(v) ? '' : 'need';
   const inp = (k, ph='') => `<input data-k="${k}" value="${esc(it[k])}" placeholder="${ph || (k==='ps' ? '' : '입력 필요')}" class="${k==='ps' ? '' : nd(it[k])}">`;
-  return `<div class="card" data-i="${i}">
-    <div class="box-h"><h2>${it.blank?'직접 입력':`#${i+1} ${esc(it.pn || it.proj || '')}`}</h2>
+  const mem = it.grp ? S.items.filter(x => x.grp === it.grp) : [], gi = mem.indexOf(it), grouped = mem.length > 1;
+  const gbar = grouped && gi === 0 ? `<div class="grpbar" data-grp="${it.grp}"><b>같은 메시지에서 나온 ${mem.length}건</b>
+      <label><input type="checkbox" data-glink${S.grpLink[it.grp] === false ? '' : ' checked'}> 공통 칸 함께 수정</label>
+      <span class="gsp"></span><button class="btn sm" data-gcopy>전체 복사</button><button class="btn pri sm" data-gup>전체 관리대장 업로드</button></div>` : '';
+  return `<div class="card${grouped ? ' grp' : ''}" data-i="${i}">${gbar}
+    <div class="box-h"><h2>${grouped ? `<span class="gtag">묶음 ${gi+1}/${mem.length}</span>` : ''}${it.blank?'직접 입력':`#${i+1} ${esc(it.pn || it.proj || '')}`}</h2>
       <div class="row" style="margin:0">${top?`<span class="conf ${confCls(top.p)}">추천 신뢰도 ${Math.round(top.p*100)}%</span>`:''}
       <button class="btn pri sm" data-copy>복사</button><button class="btn sm" data-up>관리대장 업로드</button><button class="btn sm" data-del>삭제</button></div></div>
     <div class="grid">
@@ -918,7 +949,51 @@ function openDD(input){
   }
   dd.style.display = 'block';
 }
-function pickFinder(i, name){ const it = S.items[i]; it.finder = name; refreshCard(i); }   // 발견자는 기억하지 않음 (건마다 메시지의 요청자 또는 직접 입력)
+// 묶음: 공통 칸(날짜·발견자·귀책·발생기인·발생시점·조치·P.S·발행자)을 한 카드에서 고치면 같은 묶음 카드에도 반영
+const SHARED = ['date','finder','vendor','b','m','s','when','act','ps','pub'];
+S.grpLink = {};
+const shSnap = x => { x._sh = SHARED.map(k => x[k]); };
+function syncGroup(it){
+  if (!it || !it.grp) return;
+  const changed = it._sh ? SHARED.filter((k, n) => it[k] !== it._sh[n]) : [];
+  shSnap(it);
+  if (!changed.length || S.grpLink[it.grp] === false) return;
+  S.items.forEach((x, j) => {
+    if (x === it || x.grp !== it.grp) return;
+    let ch = false; changed.forEach(k => { if (x[k] !== it[k]) { x[k] = it[k]; ch = true; } });
+    if (changed.some(k => 'bms'.includes(k) && k.length === 1)) { x.manual = it.manual; x.manualBig = it.manualBig; }
+    shSnap(x); if (ch) refreshCard(j);
+  });
+}
+const cardItem = el => { const c = el && el.closest && el.closest('.card'); return c ? S.items[+c.dataset.i] : null; };
+// 묶음 전체: 빈 칸 확인 → 건별 양식을 빈 줄로 이어서 복사 / 확인 한 번으로 건별 업로드
+function grpItems(g){ return S.items.filter(x => x.grp === g); }
+function grpMissing(list){
+  const bad = list.map(x => [S.items.indexOf(x) + 1, missingOf(x)]).filter(([, m]) => m.length);
+  if (!bad.length) return false;
+  list.forEach(x => refreshCard(S.items.indexOf(x)));
+  msg('비어 있는 칸이 있어요', bad.map(([n, m]) => `#${n}: <b>${m.map(esc).join(', ')}</b>`).join('<br>') + '<br><span class="mut">(P.S만 비워 둘 수 있어요)</span>');
+  return true;
+}
+async function copyGroup(g){
+  const list = grpItems(g); if (grpMissing(list)) return;
+  await copy(list.map(formatText).join('\n\n')); toast(`${list.length}건 복사했어요`);
+  uploadGroup(g, true);
+}
+async function uploadGroup(g, afterCopy){
+  const list = grpItems(g); if (!afterCopy && grpMissing(list)) return;
+  if (!CONFIG.API_URL && !MOCK) return;
+  await new Promise(r => setTimeout(r, 30));
+  if (list.some(x => !clean(x.pub))) return msg('발행자를 선택해 주세요', '관리대장 탭에 올리려면 카드 맨 아래 발행자를 먼저 선택해야 해요.');
+  const jobs = []; for (const it of list) { if (it.uploading) continue; const f = toF(it); jobs.push({ it, f, fp: await fpOf(f) }); }
+  const fresh = jobs.filter(j => !isUploaded(j.fp)), dup = jobs.length - fresh.length;
+  if (!fresh.length) return msg('업로드 완료된 건입니다', '이 묶음의 건은 모두 이미 관리대장 탭에 올라가 있어요.');
+  const ok = await modal({ title:`관리대장 탭에 ${fresh.length}건 업로드 하시겠습니까?`,
+    body:`<p>${fresh.map(j => esc(`${j.f.proj} · ${j.f.pn} · ${j.f.qty}EA`)).join('<br>')}</p><p class="mut">관리대장에는 건마다 한 줄씩 따로 등록돼요.${dup ? ` (이미 올라간 ${dup}건은 빼요)` : ''}</p>`,
+    buttons:[{label:'아니오', value:false},{label:'예', value:true, cls:'pri'}] });
+  if (ok) enqueueUploads(fresh);
+}
+function pickFinder(i, name){ const it = S.items[i]; it.finder = name; refreshCard(i); syncGroup(it); }   // 발견자는 기억하지 않음 (건마다 메시지의 요청자 또는 직접 입력)
 function pickCombo(el, name, type){ const i = +el.closest('.card').dataset.i; return el.dataset.combo === 'proj' ? pickProj(i, name, type) : el.dataset.combo === 'pn' ? pickPart(i, name) : el.dataset.combo === 'finder' ? pickFinder(i, name) : pickVendor(i, name); }
 // 품번을 목록에서 고르면 품명도 채움 (불량내용 때문에 PROPOSAL·SCS로 정해진 품명은 그대로)
 function pickPart(i, pn){
@@ -933,7 +1008,7 @@ function pickProj(i, name, type){
   it.proj = name; it.projPick = name; it.type = type || pt.type || it.type; it.types = pt.list; it.projUnknown = false; refreshCard(i);
 }
 function pickVendor(i, name){
-  const it = S.items[i]; it.vendor = name; it.manual = false; recommend(it, true); refreshCard(i);
+  const it = S.items[i]; it.vendor = name; it.manual = false; recommend(it, true); refreshCard(i); syncGroup(it);
 }
 
 /* ================== 이벤트 ================== */
@@ -952,6 +1027,12 @@ async function copy(text){
 const cards = $('#cards');
 cards.addEventListener('click', e => {
   const card = e.target.closest('.card'); if (!card) return; const i = +card.dataset.i, it = S.items[i];
+  const gb = e.target.closest('.grpbar');
+  if (gb) { const g = gb.dataset.grp;
+    if (e.target.closest('[data-glink]')) { S.grpLink[g] = e.target.checked; if (e.target.checked) grpItems(g).forEach(shSnap); return; }
+    if (e.target.closest('[data-gcopy]')) return copyGroup(g);
+    if (e.target.closest('[data-gup]')) return uploadGroup(g);
+    return; }
   if (e.target.closest('[data-copy]')) {
     // P.S 를 뺀 모든 칸이 채워져야 복사·업로드 가능
     const miss = missingOf(it);
@@ -1022,6 +1103,8 @@ cards.addEventListener('keydown', e => {
   if (e.key==='Escape') dd.style.display='none';
 });
 cards.addEventListener('focusin', e => { if (e.target.hasAttribute('data-combo')) openDD(e.target); });
+// 위 처리들이 끝난 뒤 묶음 카드에 공통 칸 반영
+['click','input','change','keydown'].forEach(t => cards.addEventListener(t, e => { if (!e.target.closest('.grpbar')) syncGroup(cardItem(e.target)); }));
 document.addEventListener('mousedown', e => { if (!e.target.closest('.combo')) document.querySelectorAll('.dd').forEach(d=>d.style.display='none'); });
 cards.addEventListener('focusout', e => {
   const el = e.target; if (!el.hasAttribute('data-combo')) return;
@@ -1127,11 +1210,13 @@ async function askUpload(it){
   const ok = await modal({ title:'관리대장 탭에 업로드 하시겠습니까?', body:`<p>${esc(f.pn || f.proj)} · ${esc(f.text)}</p>`, buttons:[{label:'아니오', value:false},{label:'예', value:true, cls:'pri'}] });
   if (!ok) return;
   // [예] → 카드를 바로 지우고 올리기는 뒤에서 (기다리지 않고 다음 건 입력 가능). 실패하면 카드를 그대로 되살림
-  it.uploading = true; S.upFps.add(fp);
-  const idx = S.items.indexOf(it); if (idx >= 0) S.items.splice(idx, 1);
+  enqueueUploads([{ it, f, fp }]);
+}
+function enqueueUploads(jobs){
+  jobs.forEach(j => { j.it.uploading = true; S.upFps.add(j.fp); j.idx = S.items.indexOf(j.it); if (j.idx >= 0) S.items.splice(j.idx, 1); UPQ.push(j); });
   if (!S.items.length || S.items.every(x => x.blank)) { $('#src').value = ''; S.items = []; }
   rerender(); window.scrollTo({ top: 0, behavior: 'smooth' });
-  UPQ.push({ it, f, fp, idx }); runUpQueue();
+  runUpQueue();
 }
 // 뒤에서 올리기: 한 건씩 순서대로. 화면 위쪽에 '올리는 중 N건' 표시
 const UPQ = []; let upRunning = false;
