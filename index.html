@@ -152,6 +152,10 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
 .empty{color:var(--mut);text-align:center;padding:32px 12px}
 /* 모바일 전용 하단 복사 버튼 */
 .mcopy{display:none;width:100%;margin-top:10px;padding:10px;font-size:15px}
+.mcopy.mup{margin-top:6px;padding:8px;font-size:14px}
+.busy{display:flex;align-items:center;gap:10px;font-weight:600}
+.busy i{width:16px;height:16px;border:2px solid var(--bd);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 @media (max-width:760px){
   .mcopy{display:block}
   .toast{top:16px;bottom:auto}
@@ -804,7 +808,7 @@ function renderCard(it, i){
   return `<div class="card" data-i="${i}">
     <div class="box-h"><h2>${it.blank?'직접 입력':`#${i+1} ${esc(it.pn || it.proj || '')}`}</h2>
       <div class="row" style="margin:0">${top?`<span class="conf ${confCls(top.p)}">추천 신뢰도 ${Math.round(top.p*100)}%</span>`:''}
-      <button class="btn pri sm" data-copy>복사</button><button class="btn sm" data-del>삭제</button></div></div>
+      <button class="btn pri sm" data-copy>복사</button><button class="btn sm" data-up>관리대장 업로드</button><button class="btn sm" data-del>삭제</button></div></div>
     <div class="grid">
       <div class="form">
         ${warn.map(w=>`<p class="warn">${esc(w)}</p>`).join('')}
@@ -826,7 +830,7 @@ function renderCard(it, i){
         ${f('P.S', inp('ps'))}
         ${f('발행자', `<div class="actsel ${nd(it.pub)}">${(S.pubs.length?S.pubs:[]).map(n=>`<button type="button" class="ac${it.pub===n?' on':''}" data-pub="${esc(n)}" style="background:#eef1f4">${esc(n)}</button>`).join('') || '<span class="mut">명단 불러오는 중…</span>'}</div>`)}
       </div>
-      <div class="out"><pre data-out>${esc(formatText(it))}</pre><button class="btn pri mcopy" data-copy>복사</button></div>
+      <div class="out"><pre data-out>${esc(formatText(it))}</pre><button class="btn pri mcopy" data-copy>복사</button><button class="btn mcopy mup" data-up>관리대장 업로드</button></div>
     </div></div>`;
 }
 function rerender(){
@@ -950,6 +954,11 @@ cards.addEventListener('click', e => {
     const miss = missingOf(it);
     if (miss.length) { refreshCard(i); return msg('비어 있는 칸이 있어요', `아래 칸을 채운 뒤 [복사]를 눌러 주세요.<br><b>${miss.map(esc).join(', ')}</b><br><span class="mut">(P.S만 비워 둘 수 있어요)</span>`); }
     copy(formatText(it)); return askUpload(it);
+  }
+  if (e.target.closest('[data-up]')) {   // 관리대장 업로드만 (복사 없이)
+    const miss = missingOf(it);
+    if (miss.length) { refreshCard(i); return msg('비어 있는 칸이 있어요', `아래 칸을 채운 뒤 [관리대장 업로드]를 눌러 주세요.<br><b>${miss.map(esc).join(', ')}</b><br><span class="mut">(P.S만 비워 둘 수 있어요)</span>`); }
+    return askUpload(it);
   }
   if (e.target.closest('[data-del]')) { S.items.splice(i,1); return rerender(); }
   const wh = e.target.closest('[data-when]');
@@ -1098,28 +1107,39 @@ async function fpOf(f){
 const REQUIRED = [['date','발견한 날짜'],['proj','프로젝트 발주명'],['type','장비타입'],['finder','발견자'],['name','품명'],['pn','품번'],['qty','수량'],
   ['b','발생기인(대분류)'],['m','발생기인(중분류)'],['s','발생기인(소분류)'],['when','발생시점'],['text','불량내용'],['act','조치내용'],['vendor','귀책'],['pub','발행자']];
 const missingOf = it => REQUIRED.filter(([k]) => !clean(k === 'name' ? fmtName(it.name) : k === 'qty' ? String(it.qty||'').replace(/\D/g,'') : it[k])).map(([, n]) => n);
+// 잠깐 기다리는 동안 보여주는 창 (버튼 없음). 닫기 함수를 돌려줌
+function busy(text){
+  const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = `<div class="mbox"><div class="busy"><i></i>${esc(text)}</div></div>`;
+  document.body.appendChild(m); return () => m.remove();
+}
+// 이미 관리대장 탭에 있는 건인지: 화면에 받아 둔 목록(+이번에 올린 기록)으로 바로 확인 → 서버를 기다리지 않음
+S.upFps = new Set();
+const isUploaded = fp => S.upFps.has(fp) || (S.led || []).some(x => x.fp === fp);
 async function askUpload(it){
   if (missingOf(it).length) return;   // 안전장치: 빈 칸이 있으면 업로드하지 않음
   if (!CONFIG.API_URL && !MOCK) return;
-  await new Promise(r => setTimeout(r, 350));
+  if (it.uploading) return;
+  await new Promise(r => setTimeout(r, 30));   // 복사 알림이 먼저 보이게 아주 잠깐만
   if (!clean(it.pub)) {
-    await msg('발행자를 선택해 주세요', '관리대장 탭에 올리려면 카드 맨 아래 발행자를 먼저 선택해야 해요. 선택한 뒤 [복사]를 다시 눌러주세요.');
+    await msg('발행자를 선택해 주세요', '관리대장 탭에 올리려면 카드 맨 아래 발행자를 먼저 선택해야 해요. 선택한 뒤 다시 눌러 주세요.');
     return;
   }
+  const f = toF(it), fp = await fpOf(f);
+  if (isUploaded(fp)) return msg('업로드 완료된 건입니다', '같은 내용(발행자 포함)이 이미 관리대장 탭에 올라가 있어요.');
+  const ok = await modal({ title:'관리대장 탭에 업로드 하시겠습니까?', body:`<p>${esc(f.pn || f.proj)} · ${esc(f.text)}</p>`, buttons:[{label:'아니오', value:false},{label:'예', value:true, cls:'pri'}] });
+  if (!ok) return;
+  it.uploading = true; const done = busy('관리대장 탭에 올리는 중…');
   try {
-    const f = toF(it), fp = await fpOf(f);
-    const c = await api('check', { fp });
-    if (c.exists) return msg('업로드 완료된 건입니다', '같은 내용(발행자 포함)이 이미 관리대장 탭에 올라가 있어요.');
-    const ok = await modal({ title:'관리대장 탭에 업로드 하시겠습니까?', body:`<p>${esc(f.pn || f.proj)} · ${esc(f.text)}</p>`, buttons:[{label:'아니오', value:false},{label:'예', value:true, cls:'pri'}] });
-    if (!ok) return;
-    const r = await api('add', { fp, f });
+    const r = await api('add', { fp, f });   // 같은 건 두 번 올라가지 않게 서버가 한 번 더 확인
+    done(); S.upFps.add(fp);
     if (r.dup) return msg('업로드 완료된 건입니다', '같은 내용(발행자 포함)이 이미 관리대장 탭에 올라가 있어요.');
     toast('관리대장 탭에 올렸어요 — 입력 내용을 지웠어요'); loadLedger();
     // 발행 완료된 건은 입력 내용 자동 삭제 (여러 건이면 그 카드만, 마지막 건이면 붙여넣기 칸까지)
     const idx = S.items.indexOf(it); if (idx >= 0) S.items.splice(idx, 1);
     if (!S.items.length || S.items.every(x => x.blank)) { $('#src').value = ''; S.items = []; }
     rerender(); window.scrollTo({ top: 0, behavior: 'smooth' });
-  } catch(e) { msg('관리대장 연결 오류', esc(e.message)); }
+  } catch(e) { done(); msg('관리대장 연결 오류', esc(e.message)); }
+  finally { it.uploading = false; }
 }
 
 /* ================== 관리대장 탭 ================== */
@@ -1461,6 +1481,8 @@ if (!IS_MOBILE) try { localStorage.removeItem('nc_pub'); } catch(e) {}   // PC(�
 rerender();
 loadAll();
 showTab(store.get('nc_tab','conv'));
+// 변환기 탭에서 시작해도 관리대장 목록을 미리 받아 둠 → [복사] 때 '이미 올린 건' 확인을 서버 없이 바로
+if ((CONFIG.API_URL || MOCK) && store.get('nc_tab','conv') !== 'ledger') setTimeout(() => loadLedger(), 1500);
 if (store.get('nc_ledview','list') === 'hist') setLedView('hist'); else loadLedger();
 </script>
 </body>
