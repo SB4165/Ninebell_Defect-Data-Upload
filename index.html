@@ -108,6 +108,7 @@ input.need::placeholder,textarea.need::placeholder{color:#8a4a40}
 .modal .mbtn .btn{min-width:80px;padding:7px 16px}
 /* 관리대장 탭 */
 .lbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.lbar2{padding-top:10px;border-top:1px dashed var(--bd2)}
 .lbar input[type=date]{width:auto}
 /* 날짜 칸: 20261002 처럼 숫자만 쳐도 됨 + 달력 버튼 */
 .dbox{display:inline-flex;align-items:center;position:relative}
@@ -116,6 +117,11 @@ input.need::placeholder,textarea.need::placeholder{color:#8a4a40}
 .dbox .cal:hover{color:var(--acc)}
 .dbox .calpick{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
 input.bad{border-color:#cf222e!important;background:#ffebe9}
+.qd{display:inline-flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden}
+.qd button{border:0;border-left:1px solid var(--bd);background:var(--bg);padding:0 9px;height:30px;font-size:12.5px;cursor:pointer;color:var(--fg)}
+.qd button:first-child{border-left:0}
+.qd button:hover{background:var(--bg2)}
+.qd button.on{background:var(--acc-bg);color:var(--acc);font-weight:600}
 .lbar .selcnt{font-weight:600}
 table.led td.ck,table.led th.ck{width:28px;padding-right:0}
 table.led tr.sel td{background:#fff8c5}
@@ -214,12 +220,14 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
     <div class="box-b" id="ledList">
       <div class="lbar">
         <span class="mut">발생일</span>
-        <span class="dbox"><input id="syncFrom" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span> <span class="mut">~</span> <span class="dbox"><input id="syncTo" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span>
-        <button class="btn pri sm" id="syncRange">조건부 동기화</button>
-        <button class="btn pri sm" id="syncAll">일괄 동기화</button>
-        <button class="btn sm danger" id="delSel" style="margin-left:auto" disabled>선택 삭제</button>
-        <button class="btn sm danger" id="delSynced">동기화 완료건 일괄삭제</button>
+        <span class="dbox"><input id="syncFrom" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span> <span class="mut">~</span> <span class="dbox"><input id="syncTo" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span> <span class="qd" data-qd-for="sync"><button type="button" data-qd="all">전체</button><button type="button" data-qd="today">오늘</button><button type="button" data-qd="week">이번 주</button><button type="button" data-qd="month">이번 달</button></span>
+        <select id="ledStat" title="상태로 거르기"><option value="">상태 전체</option><option value="wait">대기</option><option value="dirty">수정됨</option><option value="synced">동기화 완료</option></select>
       </div>
+      <div class="lbar lbar2">
+        <span class="mut">동기화</span> <button class="btn pri sm" id="syncRange">조건부 동기화</button> <button class="btn pri sm" id="syncAll">일괄 동기화</button>
+        <span class="mut" style="margin-left:6px">선택한 건</span> <button class="btn pri sm" id="syncSel" disabled>선택 동기화</button> <button class="btn sm" id="unsyncSel" disabled>동기화 취소</button> <button class="btn sm danger" id="delSel" disabled>선택 삭제</button>
+        <button class="btn sm danger" id="delSynced" style="margin-left:auto">동기화 완료건 일괄삭제</button>
+</div>
       <div class="twrap"><table class="led"><thead><tr>
         <th class="ck"><input type="checkbox" id="ledAll" title="보이는 건 전체 선택"></th><th>No.</th><th>상태</th><th>발생일</th><th>발주 프로젝트명</th><th>TYPE / PO No.</th><th>품명</th><th>품번</th><th>수량</th><th>귀책업체</th>
         <th>대분류</th><th>중분류</th><th>소분류</th><th>구분</th><th>발견자</th><th>담당자(발행자)</th><th>불량내용</th><th>조치사항</th><th>비고</th><th>관리</th>
@@ -229,7 +237,7 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
     <div class="box-b" id="ledHist" style="display:none">
       <div class="lbar">
         <select id="hBasis"><option value="created">등록일</option><option value="date">발생일</option></select>
-        <span class="dbox"><input id="hFrom" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span> <span class="mut">~</span> <span class="dbox"><input id="hTo" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span>
+        <span class="dbox"><input id="hFrom" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span> <span class="mut">~</span> <span class="dbox"><input id="hTo" class="dt" placeholder="20261002" autocomplete="off"><button type="button" class="cal" title="달력에서 고르기"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z"/></svg></button><input type="date" class="calpick" tabindex="-1" aria-hidden="true"></span> <span class="qd" data-qd-for="h"><button type="button" data-qd="all">전체</button><button type="button" data-qd="today">오늘</button><button type="button" data-qd="week">이번 주</button><button type="button" data-qd="month">이번 달</button></span>
         <select id="hStat"><option value="">상태 전체</option><option value="wait">대기</option><option value="dirty">수정됨</option><option value="synced">동기화 완료</option><option value="deleted">사이트에서 삭제</option><option value="gone">시트에서 삭제됨</option></select>
         <input class="hq" id="hQ" placeholder="품번·품명·발행자·불량내용·고유번호 검색 (초성 가능)">
         <button class="btn sm" id="hReset">초기화</button>
@@ -1166,6 +1174,7 @@ function mockApi(a, d){   // 테스트(?mock=1)용 가짜 서버
   if (a==='reqDelete') { st.rq = st.rq.filter(x=>x.id!==d.id); return { ok:true }; }
   if (a==='reqReview') { if (d.pw !== 'vnawlf') return { ok:false, error:'badpw' }; const it = st.rq.find(x=>x.id===d.id); if (d.status!=null) it.status=d.status; if (d.opinion!=null) it.opinion=d.opinion; return { ok:true }; }
   if (a==='history') return { ok:true, sheetOk:true, sheet:'수입/공정 부적합 (테스트)', recs: JSON.parse(JSON.stringify(st.hist)).map(r=>({ ...r, rowNow: r.everSynced && !r.goneInSheet ? r.row : 0 })) };
+  if (a==='caps') return { ok:true, caps:['selSync','unsync'] };
   if (a!=='list' && a!=='check' && a!=='add' && d.pw !== 'vnawlf') return { ok:false, error:'badpw' };
   if (a==='list') return { ok:true, items: JSON.parse(JSON.stringify(st.items)) };
   if (a==='check') return { ok:true, exists: st.fps.includes(d.fp) };
@@ -1173,8 +1182,9 @@ function mockApi(a, d){   // 테스트(?mock=1)용 가짜 서버
   if (a==='update') { const it = st.items.find(x=>x.id===d.id); it.f = {...d.f}; if (!st.fps.includes(d.fp)) st.fps.push(d.fp); if (it.synced) it.dirty = true; hl(it.id,'수정',r=>{ r.f={...d.f}; r.status=it.dirty?'dirty':'wait'; }); return { ok:true }; }
   if (a==='delete') { d.ids.forEach(id=>hl(id,'삭제',r=>{ r.status='deleted'; })); st.items = st.items.filter(x=>!d.ids.includes(x.id)); return { ok:true }; }
   if (a==='deleteSynced') { st.items.filter(x=>x.synced && !x.dirty).forEach(x=>hl(x.id,'일괄삭제',r=>{ r.status='deleted'; })); st.items = st.items.filter(x=>!(x.synced && !x.dirty)); return { ok:true }; }
+  if (a==='unsync') { const tg = st.items.filter(x=>x.synced && d.ids.includes(x.id)); tg.forEach(x=>{ hl(x.id,'동기화 취소 ('+x.row+'행 삭제)',r=>{ r.status='wait'; r.everSynced=false; r.row=0; }); x.synced=false; x.dirty=false; x.row=0; }); return { ok:true, canceled:tg.length, removed:tg.length, missing:0, sheet:'수입공정 부적합 (테스트)' }; }
   if (a==='sync') { const ymd=s=>String(s||'').replace(/\D/g,''); const f=ymd(d.from), t=ymd(d.to); let added=0, updated=0;
-    st.items.filter(x=>(!x.synced||x.dirty) && (!f||ymd(x.f.date)>=f) && (!t||ymd(x.f.date)<=t)).forEach(x=>{ const again=x.synced; again ? updated++ : added++; if (!again) x.row = ++st.row; x.synced=true; x.dirty=false; hl(x.id,(again?'재동기화':'동기화')+' ('+x.row+'행)',r=>{ r.status='synced'; r.everSynced=true; r.row=x.row; r.f={...x.f}; }); });
+    st.items.filter(x=>(!x.synced||x.dirty) && (d.ids && d.ids.length ? d.ids.includes(x.id) : (!f||ymd(x.f.date)>=f) && (!t||ymd(x.f.date)<=t))).forEach(x=>{ const again=x.synced; again ? updated++ : added++; if (!again) x.row = ++st.row; x.synced=true; x.dirty=false; hl(x.id,(again?'재동기화':'동기화')+' ('+x.row+'행)',r=>{ r.status='synced'; r.everSynced=true; r.row=x.row; r.f={...x.f}; }); });
     return { ok:true, added, updated, sheet:'수입공정 부적합 (테스트)' }; }
   return { ok:false, error:'unknown' };
 }
@@ -1284,12 +1294,16 @@ $('#ledRefresh').onclick = () => S.ledView === 'hist' ? loadHist() : loadLedger(
 // 대기 목록: 발생일 기간을 넣으면 그 기간 건만 보임 (조건부 동기화 대상과 같음)
 S.ledSel = new Set(); S.ledShown = [];
 function ledRows(){
-  const f0 = ymdOf($('#syncFrom').value), t0 = ymdOf($('#syncTo').value);
-  if (!f0 && !t0) return S.led;
-  return S.led.filter(x => { const d = ymdOf(x.f.date); return d && (!f0 || d >= f0) && (!t0 || d <= t0); });
+  const f0 = ymdOf($('#syncFrom').value), t0 = ymdOf($('#syncTo').value), stt = $('#ledStat').value;
+  const stOf = x => x.dirty ? 'dirty' : x.synced ? 'synced' : 'wait';
+  return S.led.filter(x => { if (stt && stOf(x) !== stt) return false; if (!f0 && !t0) return true;
+    const d = ymdOf(x.f.date); return d && (!f0 || d >= f0) && (!t0 || d <= t0); });
 }
 function updSel(){
   const n = S.ledSel.size, b = $('#delSel'); b.disabled = !n; b.textContent = n ? `선택 삭제 (${n}건)` : '선택 삭제';
+  const sel = S.led.filter(x => S.ledSel.has(x.id)), ns = sel.filter(x => !x.synced || x.dirty).length, nu = sel.filter(x => x.synced).length;
+  $('#syncSel').disabled = !ns; $('#syncSel').textContent = ns ? `선택 동기화 (${ns}건)` : '선택 동기화';
+  $('#unsyncSel').disabled = !nu; $('#unsyncSel').textContent = nu ? `동기화 취소 (${nu}건)` : '동기화 취소';
   const shown = S.ledShown || [], k = shown.filter(x => S.ledSel.has(x.id)).length, all = $('#ledAll');
   all.checked = !!shown.length && k === shown.length; all.indeterminate = k > 0 && k < shown.length;
 }
@@ -1298,6 +1312,31 @@ $('#ledBody').addEventListener('change', e => {
   cb.checked ? S.ledSel.add(tr.dataset.id) : S.ledSel.delete(tr.dataset.id); tr.classList.toggle('sel', cb.checked); updSel();
 });
 $('#ledAll').addEventListener('change', e => { (S.ledShown || []).forEach(x => e.target.checked ? S.ledSel.add(x.id) : S.ledSel.delete(x.id)); renderLedger(); });
+$('#ledStat').addEventListener('change', renderLedger);
+// 서버(Apps Script)가 새 기능을 아는지 먼저 확인 — 예전 버전 서버에 보내면 선택이 무시되고 전체가 동기화될 수 있어서
+async function needCaps(cap){
+  try { const r = await api('caps'); if (r && (r.caps || []).includes(cap)) return true; } catch(e) {}
+  msg('서버 업데이트가 필요해요', '이 기능은 새 Apps Script(Code.gs)가 배포돼야 쓸 수 있어요.<br>Apps Script에 새 Code.gs를 붙여넣고 배포 → 배포 관리 → 연필 → 새 버전 → 배포를 해 주세요.');
+  return false;
+}
+// 선택 동기화: 체크한 건 중 대기·수정됨만 시트에 반영
+$('#syncSel').onclick = async () => {
+  const tg = S.led.filter(x => S.ledSel.has(x.id) && (!x.synced || x.dirty)); if (!tg.length) return;
+  if (!await needCaps('selSync')) return;
+  if (!await modal({ title:'선택 동기화', body:`<p>${tg.length}건(새로 ${tg.filter(x=>!x.synced).length} · 수정 ${tg.filter(x=>x.dirty).length})을 관리대장 구글시트에 반영할까요?</p><p class="mut">${tg.slice(0,5).map(x => esc(x.f.date + ' · ' + x.f.pn)).join('<br>')}${tg.length > 5 ? `<br>외 ${tg.length - 5}건` : ''}</p>`, buttons:[{label:'취소', value:false},{label:'동기화', value:true, cls:'pri'}] })) return;
+  toast('동기화 중… 잠시만 기다려 주세요');
+  try { const r = await api('sync', { ids: tg.map(x => x.id) }, true); if (r) { tg.forEach(x => S.ledSel.delete(x.id)); await msg('동기화 완료', `${esc(r.sheet||'')} 시트에 새로 ${r.added}건, 수정 ${r.updated}건을 반영했어요.`); loadLedger(); } }
+  catch(err) { msg('동기화 오류', esc(err.message)); }
+};
+// 동기화 취소: 시트에서 그 건의 행을 통째로 지우고 탭에서는 '대기'로
+$('#unsyncSel').onclick = async () => {
+  const tg = S.led.filter(x => S.ledSel.has(x.id) && x.synced); if (!tg.length) return;
+  if (!await needCaps('unsync')) return;
+  if (!await modal({ title:`${tg.length}건 동기화를 취소할까요?`, body:`<p>구글시트에서 이 건들의 <b>행을 통째로 지우고</b>, 관리대장 탭에서는 '대기'로 되돌려요. 아래 행들은 한 칸씩 올라가요.</p><p class="mut">${tg.slice(0,5).map(x => esc(`${x.f.date} · ${x.f.pn}${x.row ? ` (${x.row}행)` : ''}`)).join('<br>')}${tg.length > 5 ? `<br>외 ${tg.length - 5}건` : ''}</p>`, buttons:[{label:'닫기', value:false},{label:'동기화 취소', value:true, cls:'pri'}] })) return;
+  toast('동기화 취소 중… 잠시만 기다려 주세요');
+  try { const r = await api('unsync', { ids: tg.map(x => x.id) }, true); if (r) { tg.forEach(x => S.ledSel.delete(x.id)); await msg('동기화 취소 완료', `${esc(r.sheet||'')} 시트에서 ${r.removed}개 행을 지우고 ${r.canceled}건을 '대기'로 되돌렸어요.${r.missing ? `<br>(${r.missing}건은 시트에 행이 없어서 상태만 되돌렸어요)` : ''}`); loadLedger(); } }
+  catch(err) { msg('오류', esc(err.message)); }
+};
 $('#delSel').onclick = async () => {
   const sel = S.led.filter(x => S.ledSel.has(x.id)); if (!sel.length) return;
   const syn = sel.filter(x => x.synced).length;
@@ -1325,6 +1364,7 @@ function normDate(v){
 function dateInput(el, onChange){
   let last = el.value;
   const fire = () => { if (el.value !== last) { last = el.value; onChange && onChange(); } };
+  el.setDate = v => { el.value = v; el.classList.remove('bad'); last = v; };   // 바로 버튼(전체·오늘…)에서 값 넣기
   const apply = full => { const v = el.value.trim();
     if (!v) { el.classList.remove('bad'); return fire(); }
     const n = normDate(v);
@@ -1343,6 +1383,26 @@ function dateInput(el, onChange){
   pk.addEventListener('change', () => { if (pk.value) { el.value = pk.value.replace(/-/g, '.'); el.classList.remove('bad'); fire(); } pk.style.pointerEvents = ''; });
 }
 dateInput($('#syncFrom'), renderLedger); dateInput($('#syncTo'), renderLedger);
+// 기간 바로 버튼: 전체(기간 비움) · 오늘 · 이번 주(월~일) · 이번 달
+const fmtD = d => `${d.getFullYear()}.${two(d.getMonth()+1)}.${two(d.getDate())}`;
+function qdRange(k){
+  const t = new Date(); t.setHours(0,0,0,0);
+  if (k === 'today') return [fmtD(t), fmtD(t)];
+  if (k === 'week') { const m = new Date(t); m.setDate(t.getDate() - ((t.getDay() + 6) % 7)); const e = new Date(m); e.setDate(m.getDate() + 6); return [fmtD(m), fmtD(e)]; }
+  if (k === 'month') return [fmtD(new Date(t.getFullYear(), t.getMonth(), 1)), fmtD(new Date(t.getFullYear(), t.getMonth() + 1, 0))];
+  return ['', ''];
+}
+const QD = { sync: ['#syncFrom', '#syncTo', () => renderLedger()], h: ['#hFrom', '#hTo', () => renderHist()] };
+function updQd(){   // 지금 기간과 같은 버튼을 눌린 상태로 (기간이 비면 [전체])
+  document.querySelectorAll('.qd').forEach(g => { const [a, b] = QD[g.dataset.qdFor], v = [$(a).value.trim(), $(b).value.trim()];
+    g.querySelectorAll('[data-qd]').forEach(x => { const r = qdRange(x.dataset.qd); x.classList.toggle('on', r[0] === v[0] && r[1] === v[1]); }); });
+}
+document.querySelectorAll('.qd').forEach(g => g.addEventListener('click', e => {
+  const x = e.target.closest('[data-qd]'); if (!x) return; const [a, b, go] = QD[g.dataset.qdFor], r = qdRange(x.dataset.qd);
+  $(a).setDate(r[0]); $(b).setDate(r[1]); go(); updQd();
+}));
+['#syncFrom','#syncTo','#hFrom','#hTo'].forEach(id => ['input','blur','change'].forEach(t => $(id).addEventListener(t, () => setTimeout(updQd, 0))));
+document.querySelectorAll('.calpick').forEach(pk => pk.addEventListener('change', () => setTimeout(updQd, 0)));
 
 /* ---------- 이력 보기 (비밀번호 없음) ---------- */
 S.ledView = 'list'; S.hist = [];
@@ -1401,7 +1461,8 @@ function renderHist(){
 dateInput($('#hFrom'), renderHist); dateInput($('#hTo'), renderHist);
 $('#hQ').addEventListener('input', renderHist);
 $('#hQ').addEventListener('blur', renderHist);
-$('#hReset').onclick = () => { $('#hBasis').value = 'created'; $('#hFrom').value = $('#hTo').value = $('#hStat').value = $('#hQ').value = ''; renderHist(); };
+$('#hReset').onclick = () => { $('#hBasis').value = 'created'; $('#hFrom').setDate(''); $('#hTo').setDate(''); $('#hStat').value = $('#hQ').value = ''; renderHist(); updQd(); };
+updQd();
 $('#ledBody').addEventListener('click', async e => {
   const tr = e.target.closest('tr[data-id]'); if (!tr) return; const x = S.led.find(y => y.id === tr.dataset.id); if (!x) return;
   try {
