@@ -153,6 +153,8 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
 /* 모바일 전용 하단 복사 버튼 */
 .mcopy{display:none;width:100%;margin-top:10px;padding:10px;font-size:15px}
 .mcopy.mup{margin-top:6px;padding:8px;font-size:14px}
+.upq{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:60;background:var(--bg);border:1px solid var(--bd);border-radius:999px;padding:6px 14px;box-shadow:0 4px 14px rgba(66,74,83,.18);font-size:13px;font-weight:600;display:none;align-items:center;gap:8px;white-space:nowrap}
+.upq i{width:13px;height:13px;border:2px solid var(--bd);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite}
 .busy{display:flex;align-items:center;gap:10px;font-weight:600}
 .busy i{width:16px;height:16px;border:2px solid var(--bd);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -256,6 +258,7 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
   </section>
 </main>
 <div class="toast" id="toast"></div>
+<div class="upq" id="upq"></div>
 
 <script>
 /* ================== 설정 ================== */
@@ -1107,11 +1110,6 @@ async function fpOf(f){
 const REQUIRED = [['date','발견한 날짜'],['proj','프로젝트 발주명'],['type','장비타입'],['finder','발견자'],['name','품명'],['pn','품번'],['qty','수량'],
   ['b','발생기인(대분류)'],['m','발생기인(중분류)'],['s','발생기인(소분류)'],['when','발생시점'],['text','불량내용'],['act','조치내용'],['vendor','귀책'],['pub','발행자']];
 const missingOf = it => REQUIRED.filter(([k]) => !clean(k === 'name' ? fmtName(it.name) : k === 'qty' ? String(it.qty||'').replace(/\D/g,'') : it[k])).map(([, n]) => n);
-// 잠깐 기다리는 동안 보여주는 창 (버튼 없음). 닫기 함수를 돌려줌
-function busy(text){
-  const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = `<div class="mbox"><div class="busy"><i></i>${esc(text)}</div></div>`;
-  document.body.appendChild(m); return () => m.remove();
-}
 // 이미 관리대장 탭에 있는 건인지: 화면에 받아 둔 목록(+이번에 올린 기록)으로 바로 확인 → 서버를 기다리지 않음
 S.upFps = new Set();
 const isUploaded = fp => S.upFps.has(fp) || (S.led || []).some(x => x.fp === fp);
@@ -1128,19 +1126,38 @@ async function askUpload(it){
   if (isUploaded(fp)) return msg('업로드 완료된 건입니다', '같은 내용(발행자 포함)이 이미 관리대장 탭에 올라가 있어요.');
   const ok = await modal({ title:'관리대장 탭에 업로드 하시겠습니까?', body:`<p>${esc(f.pn || f.proj)} · ${esc(f.text)}</p>`, buttons:[{label:'아니오', value:false},{label:'예', value:true, cls:'pri'}] });
   if (!ok) return;
-  it.uploading = true; const done = busy('관리대장 탭에 올리는 중…');
-  try {
-    const r = await api('add', { fp, f });   // 같은 건 두 번 올라가지 않게 서버가 한 번 더 확인
-    done(); S.upFps.add(fp);
-    if (r.dup) return msg('업로드 완료된 건입니다', '같은 내용(발행자 포함)이 이미 관리대장 탭에 올라가 있어요.');
-    toast('관리대장 탭에 올렸어요 — 입력 내용을 지웠어요'); loadLedger();
-    // 발행 완료된 건은 입력 내용 자동 삭제 (여러 건이면 그 카드만, 마지막 건이면 붙여넣기 칸까지)
-    const idx = S.items.indexOf(it); if (idx >= 0) S.items.splice(idx, 1);
-    if (!S.items.length || S.items.every(x => x.blank)) { $('#src').value = ''; S.items = []; }
-    rerender(); window.scrollTo({ top: 0, behavior: 'smooth' });
-  } catch(e) { done(); msg('관리대장 연결 오류', esc(e.message)); }
-  finally { it.uploading = false; }
+  // [예] → 카드를 바로 지우고 올리기는 뒤에서 (기다리지 않고 다음 건 입력 가능). 실패하면 카드를 그대로 되살림
+  it.uploading = true; S.upFps.add(fp);
+  const idx = S.items.indexOf(it); if (idx >= 0) S.items.splice(idx, 1);
+  if (!S.items.length || S.items.every(x => x.blank)) { $('#src').value = ''; S.items = []; }
+  rerender(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  UPQ.push({ it, f, fp, idx }); runUpQueue();
 }
+// 뒤에서 올리기: 한 건씩 순서대로. 화면 위쪽에 '올리는 중 N건' 표시
+const UPQ = []; let upRunning = false;
+function updUpq(){ const n = UPQ.length + (upRunning ? 1 : 0), el = $('#upq');
+  el.style.display = n ? 'flex' : 'none'; el.innerHTML = n ? `<i></i>관리대장 올리는 중 ${n}건` : ''; }
+async function runUpQueue(){
+  if (upRunning) return updUpq();
+  upRunning = true;
+  while (UPQ.length) {
+    const job = UPQ.shift(); updUpq();
+    try {
+      const r = await api('add', { fp: job.fp, f: job.f });   // 같은 건 두 번 올라가지 않게 서버가 한 번 더 확인
+      toast(r.dup ? '이미 관리대장 탭에 있던 건이에요' : '관리대장 탭에 올렸어요');
+    } catch (e) {
+      S.upFps.delete(job.fp); job.it.uploading = false;
+      // 실패 → 지웠던 카드를 입력 내용 그대로 되살림 (손대지 않은 빈 카드는 치움)
+      S.items = S.items.filter(x => !(x.blank && !clean(x.proj) && !clean(x.pn) && !clean(x.text) && !clean(x.finder)));
+      S.items.splice(Math.min(job.idx < 0 ? 0 : job.idx, S.items.length), 0, job.it);
+      rerender(); window.scrollTo({ top: 0, behavior: 'smooth' });
+      msg('업로드 실패 — 다시 눌러 주세요', `${esc(job.f.pn || job.f.proj)} · ${esc(job.f.text)}<br>입력한 내용은 카드로 되살려 두었어요. [관리대장 업로드]를 다시 눌러 주세요.<br><span class="mut">${esc(e.message)}</span>`);
+    }
+  }
+  upRunning = false; updUpq(); loadLedger();
+}
+// 올리는 중에 창을 닫으려 하면 확인
+window.addEventListener('beforeunload', e => { if (upRunning || UPQ.length) { e.preventDefault(); e.returnValue = ''; } });
 
 /* ================== 관리대장 탭 ================== */
 let ledTimer = null, ledBusy = false;
