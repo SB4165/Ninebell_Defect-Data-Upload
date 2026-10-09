@@ -678,7 +678,9 @@ function parseMessage(text){
         cur.projList = list.length > 1 ? list : null;
       }
       else if (k === '품번') {   // 'A, , B' 처럼 여러 개면 목록으로 (빈 칸은 무시)
-        const list = splitList(val).map(v => findParts(v)[0] || { pn: v.toUpperCase(), name: '', raw: v, unknown: true });
+        // 제조팀 품번 바로 선택(EFEM FRAME·PROCESS FRAME·BUFFER) → 품명 = 그 이름, 품번 = '-'
+        const quick = v => CONFIG.QUICK_NAMES.find(n => n.replace(/\s/g,'') === v.replace(/\s/g,'').toUpperCase());
+        const list = splitList(val).map(v => { const q = quick(v); return q ? { pn: '-', name: q, raw: v } : (findParts(v)[0] || { pn: v.toUpperCase(), name: '', raw: v, unknown: true }); });
         if (cur.part && cur.part.pn !== list[0].pn) { push(); cur = fresh(cur); }
         cur.part = list[0]; cur.partList = list.length > 1 ? list : null;
       }
