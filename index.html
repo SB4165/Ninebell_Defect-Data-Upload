@@ -624,7 +624,7 @@ function findParts(line){
   return out;
 }
 // 메시지 이름표 (제조팀 6항목 + 예전 형식의 '수량 :', '업체 :' 등)
-const LABEL = '프로젝트\\s*(?:발주\\s*)?명?|발\\s*주\\s*명|품\\s*명|품\\s*번|part\\s*name|수\\s*량|불\\s*량\\s*내\\s*용|업\\s*체\\s*명?|귀\\s*책(?:\\s*업\\s*체)?|협력사|요\\s*청\\s*자|발\\s*견\\s*자';
+const LABEL = '프로젝트\\s*(?:발주\\s*)?명?|발\\s*주\\s*명|품\\s*명|품\\s*번|part\\s*name|수\\s*량|불\\s*량\\s*내\\s*용|업\\s*체\\s*명?|귀\\s*책(?:\\s*업\\s*체)?|협력사|요\\s*청\\s*자|발\\s*견\\s*자|비\\s*고';
 const LAB_RE = new RegExp('^(' + LABEL + ')\\s*[:：]\\s*(.*)$', 'i');
 const ASK_RE = /^귀책?\s*확인\s*요청$|^확인\s*요청$|^확인\s*필요$/;   // 제조팀 '귀책 : 확인요청' → 귀책 비워 둠
 // 붙여넣은 글 정리: 보이지 않는 글자·특수 공백·여러 콜론 모양 통일, 한 줄에 여러 항목이 붙어 오면 나눔
@@ -691,6 +691,7 @@ function parseMessage(text){
       }
       else if (k === '불량내용') cur.text.push(val);
       else if (/^(요청자|발견자)$/.test(k)) cur.finder = val;
+      else if (k === '비고') { if (/자\s*체\s*처\s*리/.test(val)) cur.act = '자체처리'; }   // 제조팀 7번 줄: '자체처리'만 보고 조치내용 자동 선택, 나머지 글은 무시
       else if (ASK_RE.test(val.replace(/\s/g,'') ) || ASK_RE.test(val)) { cur.vendor = ''; cur.vendorAsk = true; }   // 귀책 확인요청 → 귀책 비워 둠
       else { const vn = findVendor(val, true); if (vn) cur.vendor = vn; else cur.vendorRaw = val; }
       continue;
@@ -778,7 +779,7 @@ function makeItem(p){
   const it = {
     date: today(), proj: p.po ? 'SPARES_ACM' : projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
     finder: p.finder || '', pub: IS_MOBILE ? store.get('nc_pub','') : '', name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
-    qty: p.qty || '1', b:'', m:'', s:'', when:'', text: text.join(' / '), act:'', vendor: p.vendor || '', ps:'',
+    qty: p.qty || '1', b:'', m:'', s:'', when:'', text: text.join(' / '), act: p.act || '', vendor: p.vendor || '', ps:'',
     nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '', vendorAsk: !!p.vendorAsk && !p.vendor,
     recs: [], manual:false, grp: p.grp || '', qtyWarn: !!p.qtyWarn
   };
@@ -1075,6 +1076,7 @@ cards.addEventListener('input', e => {
     el.value = splitJamo(el.value); el.blur(); el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch(_){}
   }
   if (k==='qty' && /\D/.test(el.value)) el.value = el.value.replace(/\D/g,'');   // 숫자만
+  if (k==='vendor' && clean(it.vendor) && !clean(el.value)) it.vendorCleared = true;   // 있던 귀책을 지웠음 (칸을 벗어날 때 발생기인도 지움)
   it[k] = el.value;
   if (k!=='ps' && el.tagName==='INPUT') el.classList.toggle('need', !clean(el.value));
   if (k==='name') card.querySelectorAll('[data-qname]').forEach(c => c.classList.toggle('on', fmtName(el.value) === c.dataset.qname));
@@ -1121,6 +1123,9 @@ cards.addEventListener('focusout', e => {
   setTimeout(() => { const card = el.closest('.card'); if (!card || card.contains(document.activeElement) && document.activeElement===el) return;
     const i = +card.dataset.i, it = S.items[i];
     if (el.dataset.combo !== 'vendor') return;
+    // 귀책을 지우면 그 귀책으로 정해졌던 발생기인(대·중·소)도 같이 지움
+    const cleared = it.vendorCleared; it.vendorCleared = false;
+    if (cleared && !clean(it.vendor) && (it.b || it.m || it.s)) { it.vendor = ''; it.b = it.m = it.s = ''; it.manual = false; it.manualBig = false; refreshCard(i); syncGroup(it); return; }
     if (S.vendorBig[it.vendor] && S.vendorBig[it.vendor] !== it.b) pickVendor(i, it.vendor); }, 150);
 });
 
