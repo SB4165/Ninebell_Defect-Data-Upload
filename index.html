@@ -579,7 +579,7 @@ const QTY_IN = /수\s*량\s*[:：]?\s*(\d+)\s*(?:ea|개|pcs|set|세트)?(?![A-Za
 // 불량내용에서 수량을 떼어 수량 칸으로: 수량 칸이 비었으면 첫 수량을 가져오고, 같은 숫자는 지움. 다른 숫자는 설명일 수 있어 그대로 둠
 function splitQty(cur){
   cur.text = cur.text.map(t => t.replace(QTY_IN, (m, a, b) => { const n = String(+(a || b));
-    if (!cur.qty) { cur.qty = n; return ' '; }
+    if (!cur.qty && !cur.qtyAsk) { cur.qty = n; return ' '; }
     return n === cur.qty ? ' ' : m; })
     .replace(/\s{2,}/g,' ').replace(/^[\s,/:|·-]+|[\s,/:|·-]+$/g,'').trim()).filter(Boolean);
 }
@@ -648,7 +648,7 @@ function expandMulti(c){
     const x = { ...c, text: [...c.text], projList: null, partList: null, qtyList: null, grp: g, qtyWarn: qtyBad };
     if (p) { x.po = p.po || ''; x.proj = p.po ? null : p.proj; }
     if (n) x.part = n;
-    x.qty = q ? (q[i] || q[0]) : c.qty;
+    x.qty = q ? (q[i] !== undefined ? q[i] : q[0]) : c.qty;
     return x;
   });
 }
@@ -686,8 +686,11 @@ function parseMessage(text){
       }
       else if (/^(품명|partname)$/i.test(k)) cur.nameLines.push(val);
       else if (k === '수량') {   // '각 1 EA' → 모두 1, '1 EA, 2EA' → 건 순서대로
-        const ns = (val.match(/\d+/g) || []).map(n => String(+n));
-        if (ns.length) { cur.qty = ns[0]; cur.qtyList = ns.length > 1 && !/각/.test(val) ? ns : null; }
+        // 쉼표로 나뉜 칸마다 숫자 하나. '?'(제조팀이 비워 둔 수량)는 그 건만 빈칸으로 남김
+        const pieces = splitList(val), each = /각/.test(val);
+        let ns = pieces.map(v => { const m = v.match(/\d+/); return m ? String(+m[0]) : (/[?？]/.test(v) ? '' : null); }).filter(x => x !== null);
+        if (pieces.length < 2 && ns.length === 1 && ns[0] !== '') ns = (val.match(/\d+/g) || []).map(n => String(+n));   // '1EA 2EA'처럼 쉼표 없이 온 경우
+        if (ns.length) { cur.qty = ns[0]; cur.qtyAsk = ns.includes(''); cur.qtyList = ns.length > 1 && !each ? ns : null; }
       }
       else if (k === '불량내용') cur.text.push(val);
       else if (/^(요청자|발견자)$/.test(k)) cur.finder = val;
@@ -779,7 +782,7 @@ function makeItem(p){
   const it = {
     date: today(), proj: p.po ? 'SPARES_ACM' : projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
     finder: p.finder || '', pub: IS_MOBILE ? store.get('nc_pub','') : '', name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
-    qty: p.qty || '1', b:'', m:'', s:'', when:'', text: text.join(' / '), act: p.act || '', vendor: p.vendor || '', ps:'',
+    qty: p.qtyAsk && p.qty === '' ? '' : (p.qty || '1'), qtyAsk: !!p.qtyAsk && p.qty === '', b:'', m:'', s:'', when:'', text: text.join(' / '), act: p.act || '', vendor: p.vendor || '', ps:'',
     nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '', vendorAsk: !!p.vendorAsk && !p.vendor,
     recs: [], manual:false, grp: p.grp || '', qtyWarn: !!p.qtyWarn
   };
@@ -837,6 +840,7 @@ function renderCard(it, i){
     ? `메시지의 품명 '${it.nameWarn}'은(는) 품번이 시트에 없어 확인할 수 없어서 넣지 않았어요`
     : `메시지의 품명 '${it.nameWarn}'은(는) 이 품번의 시트 품명과 달라서 넣지 않았어요`);
   if (it.vendorAsk && !it.vendor) warn.push('제조팀이 귀책 확인을 요청했어요. 귀책을 확인해서 골라 주세요');
+  if (it.qtyAsk && !clean(it.qty)) warn.push('제조팀 메시지에서 수량이 \'?\'로 와서 비워 뒀어요 — 수량을 입력해 주세요');
   if (it.qtyWarn) warn.push('메시지의 수량 개수가 나뉜 건수와 달라요 — 수량을 확인해 주세요');
   if (it.vendorWarn && !it.vendor) warn.push(`메시지의 업체 '${it.vendorWarn}'을(를) 귀책 목록에서 찾지 못했어요`);
   }
