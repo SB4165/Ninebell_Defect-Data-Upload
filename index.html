@@ -1023,7 +1023,11 @@ function pickProj(i, name, type){
   it.proj = name; it.projPick = name; it.type = type || pt.type || it.type; it.types = pt.list; it.projUnknown = false; refreshCard(i);
 }
 function pickVendor(i, name){
-  const it = S.items[i]; it.vendor = name; it.manual = false; recommend(it, true); refreshCard(i); syncGroup(it);
+  const it = S.items[i]; it.vendor = name;
+  // 발생기인을 직접 고친 상태에서 대분류가 같은 업체로 바꾸면 고친 값 유지 (추천 목록만 새로). 대분류가 바뀌면 다시 추천
+  const keep = it.manual && it.b && S.vendorBig[name] === it.b;
+  if (!keep) it.manual = false;
+  recommend(it, !keep); refreshCard(i); syncGroup(it);
 }
 
 /* ================== 이벤트 ================== */
