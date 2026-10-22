@@ -694,7 +694,11 @@ function parseMessage(text){
       }
       else if (k === '불량내용') cur.text.push(val);
       else if (/^(요청자|발견자)$/.test(k)) cur.finder = val;
-      else if (k === '비고') { if (/자\s*체\s*처\s*리/.test(val)) cur.act = '자체처리'; }   // 제조팀 7번 줄: '자체처리'만 보고 조치내용 자동 선택, 나머지 글은 무시
+      else if (k === '비고') {   // 제조팀 7번 줄: '자체처리' → 조치내용 자동 선택, 나머지 글은 P.S로
+        if (/자\s*체\s*처\s*리/.test(val)) cur.act = '자체처리';
+        const ps = val.replace(/자\s*체\s*처\s*리/g, ' ').replace(/\s{2,}/g, ' ').replace(/^[\s,/:|·-]+|[\s,/:|·-]+$/g, '').trim();
+        if (ps) cur.ps = ps;
+      }
       else if (ASK_RE.test(val.replace(/\s/g,'') ) || ASK_RE.test(val)) { cur.vendor = ''; cur.vendorAsk = true; }   // 귀책 확인요청 → 귀책 비워 둠
       else { const vn = findVendor(val, true); if (vn) cur.vendor = vn; else cur.vendorRaw = val; }
       continue;
@@ -782,7 +786,7 @@ function makeItem(p){
   const it = {
     date: today(), proj: p.po ? 'SPARES_ACM' : projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
     finder: p.finder || '', pub: IS_MOBILE ? store.get('nc_pub','') : '', name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
-    qty: p.qtyAsk && p.qty === '' ? '' : (p.qty || '1'), qtyAsk: !!p.qtyAsk && p.qty === '', b:'', m:'', s:'', when:'', text: text.join(' / '), act: p.act || '', vendor: p.vendor || '', ps:'',
+    qty: p.qtyAsk && p.qty === '' ? '' : (p.qty || '1'), qtyAsk: !!p.qtyAsk && p.qty === '', b:'', m:'', s:'', when:'', text: text.join(' / '), act: p.act || '', vendor: p.vendor || '', ps: p.ps || '',
     nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '', vendorAsk: !!p.vendorAsk && !p.vendor,
     recs: [], manual:false, grp: p.grp || '', qtyWarn: !!p.qtyWarn
   };
