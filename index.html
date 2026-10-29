@@ -178,8 +178,9 @@ table.led tr.done td{color:var(--mut)}
 .stg .chip small{margin-left:4px;color:var(--mut)}
 .stg .chip .open{color:#cf222e;font-weight:700}
 .st.open{background:#ffebe9;color:#cf222e} .st.site{background:#dafbe1;color:#1a7f37;border:1px dashed #1a7f37}
+.stwho{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;font-size:13.5px} .stwho b{font-size:15px} .stwho .need{color:#cf222e;font-weight:600}
 .sti .who{font-size:12.5px;color:#1a7f37;font-weight:600;margin:2px 0 4px}
-.whobox{margin-top:10px} .whobox label{display:block;font-size:12.5px;font-weight:600;margin-bottom:4px} .whobox input{width:100%;box-sizing:border-box}
+.whobox{margin-top:10px} .whobox .combo{min-height:212px} .whobox .dd{top:auto;max-height:170px;overflow:auto}   /* 목록 자리를 미리 비워 둠 → 목록이 떠도 버튼을 가리거나 밀지 않음 */ .whobox label{display:block;font-size:12.5px;font-weight:600;margin-bottom:4px} .whobox input{width:100%;box-sizing:border-box}
 .whobox .hint{font-size:12px;color:var(--mut);min-height:16px;margin-top:4px} .whobox .hint.e{color:#cf222e}
 table.stt td.wrap{min-width:200px}
 .seg{display:inline-flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden;margin-left:4px}
@@ -324,11 +325,12 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
     <div class="box-h"><h2>부적합 처리현황</h2><span class="mut" id="stInfo">불러오는 중…</span>
       <button class="btn sm" id="stSync" style="margin-left:auto">지금 동기화</button></div>
     <div class="box-b">
+      <div class="stwho" id="stWho"></div>
       <div class="stsearch combo">
         <input id="stQ" autocomplete="off" placeholder="프로젝트명 3글자 이상 (예: ECP3)">
         <div class="dd stdd" id="stDD"></div>
       </div>
-      <p class="mut" style="margin:8px 0 0;font-size:12px">· 구글시트 '부적합 처리현황'(숨김 행 포함) → 사이트 한 방향 · 매시간 자동 동기화 · 처리완료 표시·취소는 처리자 이름 선택 (비밀번호 없음 · 제조팀 사이트와 같은 기록)</p>
+      <p class="mut" style="margin:8px 0 0;font-size:12px">· 구글시트 '부적합 처리현황'(숨김 행 포함) → 사이트 한 방향 · 매시간 자동 동기화 · 처리완료 표시·취소는 위의 처리자 이름으로 기록 (비밀번호 없음 · 제조팀 사이트와 같은 기록)</p>
       <div id="stRes" class="stres" style="display:none"></div>
       <div id="stSoon"></div>
     </div>
@@ -1685,12 +1687,25 @@ function pickWho(title, body, okLabel){
     q.value = def; check(); q.focus(); if (def) { q.select(); dd.style.display = 'none'; }
   });
 }
+// 처리자: 한 번 고르면 이 브라우저에 저장 → 그 뒤로는 [처리완료]를 누르면 바로 그 이름으로 처리. [변경]으로 바꿈
+function stWorker(){ const v = S.st.by || store.get('nc_worker', ''); return v && (!(S.pubs || []).length || S.pubs.includes(v)) ? v : ''; }
+function stWhoRender(){
+  const w = stWorker(), box = $('#stWho'); if (!box) return;
+  box.innerHTML = w ? `처리자 <b>${esc(w)}</b><button type="button" class="btn sm" data-stwho>변경</button><span class="mut">[처리완료]를 누르면 이 이름으로 바로 기록돼요</span>`
+    : `<span class="need">처리자를 먼저 골라 주세요</span><button type="button" class="btn sm pri" data-stwho>처리자 선택</button>`;
+}
+async function stChooseWorker(){
+  const by = await pickWho('처리자 선택', '한 번 고르면 이 브라우저에 저장돼서 다음부터는 [처리완료]를 누르면 바로 이 이름으로 기록돼요.', '선택');
+  if (!by) return '';
+  S.st.by = by; store.set('nc_worker', by); stWhoRender(); return by;
+}
+$('#stWho').addEventListener('click', e => { if (e.target.closest('[data-stwho]')) stChooseWorker(); });
 async function stMark(no, on, btn){
   const r = (S.st.rows || []).find(x => String(x.no) === String(no)) || {};
   const what = `No ${esc(no)} · ${esc(r.name || '')}${r.text ? ' — ' + esc(r.text) : ''}`;
-  const by = await pickWho(on ? '누가 처리했나요?' : '처리완료를 취소할까요?', on ? what : `${what}<br>다시 '미처리'로 돌아가요 (제조팀 사이트도 같이). 취소하는 사람 이름을 골라 주세요.`, on ? '처리완료' : '취소하기');
-  if (!by) return;
-  S.st.by = by; store.set('nc_worker', by);
+  let by = stWorker() || await stChooseWorker();
+  if (!by) return;   // 처리자를 안 고르면 처리 안 함
+  if (!on && !await modal({ title:'처리완료를 취소할까요?', body:`<p>${what}<br>다시 '미처리'로 돌아가요 (제조팀 사이트도 같이).<br>취소한 사람: <b>${esc(by)}</b></p>`, buttons:[{label:'닫기', value:false},{label:'취소하기', value:true, cls:'pri'}] })) return;
   if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
   try {
     const j = await api(on ? 'statusMark' : 'statusUnmark', { no, team:'qc', by });
@@ -1723,6 +1738,7 @@ function stSoonRender(){
 }
 $('#stSoon').addEventListener('click', e => { const li = e.target.closest('[data-soon]'); if (li) { stPick(li.dataset.soon); $('#stQ').scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
 function stInfo(){
+  stWhoRender();
   const s = S.st.snap;
   stSoonRender();
   $('#stInfo').innerHTML = s ? `마지막 동기화 ${fmtAt(s.at)} (${esc(s.by || '-')}) · 프로젝트 ${(s.projects||[]).length} · 부적합 ${s.nrows ?? (s.rows||[]).length}건${(s.err||[]).length ? ` · <span style="color:#cf222e">${s.err.map(esc).join(' / ')}</span>` : ''}` : '아직 동기화한 적이 없어요 — [지금 동기화]를 눌러 주세요';
