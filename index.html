@@ -97,6 +97,7 @@ input.need::placeholder,textarea.need::placeholder{color:#8a4a40}
 .tabs{max-width:1080px;margin:0 auto;padding:12px 16px 0;display:flex;gap:4px;border-bottom:1px solid var(--bd)}
 .tabs button{font:inherit;font-size:14px;font-weight:600;background:none;border:1px solid transparent;border-bottom:0;border-radius:6px 6px 0 0;padding:8px 14px;color:var(--mut);cursor:pointer;margin-bottom:-1px}
 .tabs button.on{background:var(--bg);border-color:var(--bd);color:var(--fg)}
+.tabs{overflow-x:auto;scrollbar-width:none} .tabs::-webkit-scrollbar{display:none} .tabs button{flex:0 0 auto}
 .tabs .badge{display:inline-block;min-width:18px;padding:0 6px;margin-left:4px;border-radius:2em;background:var(--acc-bg);color:var(--acc);font-size:11px}
 /* 모달 */
 .modal{position:fixed;inset:0;background:rgba(31,35,40,.45);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}
@@ -135,6 +136,19 @@ table.led tr.done td{color:var(--mut)}
 .st{font-size:11px;font-weight:600;border-radius:2em;padding:1px 8px}
 .st.wait{background:var(--warn-bg);color:var(--warn)} .st.done{background:var(--ok-bg);color:var(--ok)} .st.dirty{background:var(--acc-bg);color:var(--acc)}
 .st.del{background:var(--bg2);color:var(--mut);border:1px solid var(--bd)} .st.gone{background:var(--err-bg);color:var(--err)}
+/* 처리현황 탭 */
+.stsearch{max-width:420px}
+.stdd{max-height:162px}                       /* 5줄 높이, 더 많으면 스크롤 */
+.stdd div{min-height:32px;align-items:center}
+.sthead{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline}
+.sthead h3{margin:0;font-size:18px}
+.stcnt{display:flex;gap:6px;flex-wrap:wrap}
+.stg{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.stg .chip{cursor:pointer}
+.stg .chip small{margin-left:4px;color:var(--mut)}
+.stg .chip .open{color:#cf222e;font-weight:700}
+.st.open{background:#ffebe9;color:#cf222e} .st.site{background:#dafbe1;color:#1a7f37;border:1px dashed #1a7f37}
+table.stt td.wrap{min-width:200px}
 .seg{display:inline-flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden;margin-left:4px}
 .seg button{font:inherit;font-size:12.5px;font-weight:600;background:var(--bg2);border:0;padding:4px 12px;color:var(--mut);cursor:pointer}
 .seg button+button{border-left:1px solid var(--bd)} .seg button.on{background:var(--bg);color:var(--fg);box-shadow:inset 0 -2px 0 var(--acc)}
@@ -192,6 +206,7 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
 <nav class="tabs" id="tabs">
   <button type="button" data-tab="conv" class="on"><span class="tpre">부적합 </span>양식 변환기</button>
   <button type="button" data-tab="ledger"><span class="tpre">부적합 </span>관리대장 업로드<span class="badge" id="ledBadge" style="display:none"></span></button>
+  <button type="button" data-tab="stat">처리현황</button>
   <button type="button" data-tab="req">개선요청<span class="badge" id="reqBadge" style="display:none"></span></button>
 </nav>
 <main id="tab-conv">
@@ -270,6 +285,20 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
       <p class="mut" style="margin:8px 0 0">· 요청 등록·수정·삭제는 누구나 · 검토사항과 의견은 관리자만 (비밀번호) · 15초마다 자동 새로고침</p>
     </div>
   </section>
+</main>
+<main id="tab-stat" style="display:none">
+  <section class="box">
+    <div class="box-h"><h2>부적합 처리현황</h2><span class="mut" id="stInfo">불러오는 중…</span>
+      <button class="btn sm" id="stSync" style="margin-left:auto">지금 동기화</button></div>
+    <div class="box-b">
+      <div class="stsearch combo">
+        <input id="stQ" autocomplete="off" placeholder="프로젝트명 3글자 이상 (예: ECP3)">
+        <div class="dd stdd" id="stDD"></div>
+      </div>
+      <p class="mut" style="margin:8px 0 0;font-size:12px">· 구글시트 '부적합 처리현황'(숨김 행 포함) → 사이트 한 방향 · 매시간 자동 동기화 · 처리완료 표시는 누구나, 표시 취소는 관리자 비밀번호</p>
+    </div>
+  </section>
+  <section class="box" id="stRes" style="display:none"></section>
 </main>
 <div class="toast" id="toast"></div>
 <div class="upq" id="upq"></div>
@@ -1194,6 +1223,11 @@ async function call(action, data){
   if (!j.ok && j.error !== 'badpw') throw new Error(j.error || '서버 오류');
   return j;
 }
+function mockStatus(){   // 테스트용 처리현황 데이터
+  const V = ['아진물산','기구','키앤스','세라텍'], SS = ['Hole','외관손상','오입고','치수불량'], rows = [];
+  ['ECP352','ECP352 EFEM','ECP349','TT90-001'].forEach((p, pi) => { for (let i = 0; i < 6 - pi; i++) rows.push({ no: String(2800 + pi*10 + i), done: i % 3 === 0, act: ['업체반출','재발주','방문조치'][i%3], date: ` 08/${two(i+1)}`, date2:'', proj: p, name: 'PART ' + i, pn: 'P-' + i, qty: '1', vendor: V[(i+pi)%4], s: SS[i%4], finder: '홍길동', owner: '김수원', text: '불량 내용 ' + i, ps: i===2 ? 'S/N : X' : '' }); });
+  return { at: Date.now(), by: '수동', rows, projects: [['ECP352','2026.11.05'],['ECP352 EFEM','2026.11.20'],['ECP349',''],['ECP350','2026.12.01'],['ECP351',''],['ECP353',''],['ECP354',''],['TT90-001','2026.10.30']], err: [] };
+}
 function mockApi(a, d){   // 테스트(?mock=1)용 가짜 서버
   const st = MOCK_DB;
   const hl = (id, act, fn) => { const r = st.hist.find(h=>h.id===id); if (r) { r.log.push({ t:Date.now(), a:act }); fn && fn(r); } };
@@ -1203,7 +1237,11 @@ function mockApi(a, d){   // 테스트(?mock=1)용 가짜 서버
   if (a==='reqDelete') { st.rq = st.rq.filter(x=>x.id!==d.id); return { ok:true }; }
   if (a==='reqReview') { if (d.pw !== 'vnawlf') return { ok:false, error:'badpw' }; const it = st.rq.find(x=>x.id===d.id); if (d.status!=null) it.status=d.status; if (d.opinion!=null) it.opinion=d.opinion; return { ok:true }; }
   if (a==='history') return { ok:true, sheetOk:true, sheet:'수입/공정 부적합 (테스트)', recs: JSON.parse(JSON.stringify(st.hist)).map(r=>({ ...r, rowNow: r.everSynced && !r.goneInSheet ? r.row : 0 })) };
-  if (a==='caps') return { ok:true, caps:['selSync','unsync'] };
+  if (a==='caps') return { ok:true, caps:['selSync','unsync','status'] };
+  if (a==='statusGet' || a==='statusSync') { if (a==='statusSync' || !st.status) st.status = mockStatus(); const { rows, ...lite } = st.status; return { ok:true, snap: { ...lite, nrows: rows.length }, marks: st.marks || (st.marks = {}) }; }
+  if (a==='statusRows') { if (!st.status) st.status = mockStatus(); return { ok:true, rows: st.status.rows.filter(r => key(r.proj) === key(d.proj)), marks: st.marks || (st.marks = {}) }; }
+  if (a==='statusMark') { (st.marks ||= {})[d.no] = Date.now(); return { ok:true, marks: st.marks }; }
+  if (a==='statusUnmark') { if (d.pw !== 'vnawlf') return { ok:false, error:'badpw' }; delete (st.marks ||= {})[d.no]; return { ok:true, marks: st.marks }; }
   if (a!=='list' && a!=='check' && a!=='add' && d.pw !== 'vnawlf') return { ok:false, error:'badpw' };
   if (a==='list') return { ok:true, items: JSON.parse(JSON.stringify(st.items)) };
   if (a==='check') return { ok:true, exists: st.fps.includes(d.fp) };
@@ -1292,9 +1330,11 @@ function showTab(t){
   $('#tab-conv').style.display = t === 'conv' ? '' : 'none';
   $('#tab-ledger').style.display = t === 'ledger' ? '' : 'none';
   $('#tab-req').style.display = t === 'req' ? '' : 'none';
+  $('#tab-stat').style.display = t === 'stat' ? '' : 'none';
   store.set('nc_tab', t);
   clearInterval(ledTimer);
   if (t === 'ledger') { loadLedger(); ledTimer = setInterval(() => { if (!document.hidden && !document.querySelector('.modal')) loadLedger(); }, 10000); }
+  if (t === 'stat') stLoad();
   if (t === 'req') { renderReqForm(); loadReq(); ledTimer = setInterval(() => { if (!document.hidden && !document.querySelector('.modal')) loadReq(); }, 15000); }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -1574,6 +1614,91 @@ $('#delSynced').onclick = async () => {
   if (!await modal({ title:'동기화 완료건 일괄삭제', body:`<p>동기화 완료된 ${n}건을 관리대장 탭에서 지울까요? 시트에 올라간 내용은 그대로 남아요.</p>`, buttons:[{label:'취소', value:false},{label:'삭제', value:true, cls:'pri'}] })) return;
   try { const r = await api('deleteSynced', {}, true); if (r) { toast('지웠어요'); loadLedger(); } } catch(err) { msg('오류', esc(err.message)); }
 };
+
+/* ================== 처리현황 탭 (구글시트 → 사이트) ================== */
+S.st = { snap: null, marks: {}, proj: '', mode: 'vendor', grp: '', busy: false, rows: null, cache: {} };   // rows: 고른 프로젝트의 부적합 건 (프로젝트를 고를 때 서버에서 받음)
+const fmtAt = t => { if (!t) return '-'; const d = new Date(t); return `${two(d.getMonth()+1)}/${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`; };
+const stDone = r => r.done || !!S.st.marks[r.no];
+function stInfo(){
+  const s = S.st.snap;
+  $('#stInfo').innerHTML = s ? `마지막 동기화 ${fmtAt(s.at)} (${esc(s.by || '-')}) · 프로젝트 ${(s.projects||[]).length} · 부적합 ${s.nrows ?? (s.rows||[]).length}건${(s.err||[]).length ? ` · <span style="color:#cf222e">${s.err.map(esc).join(' / ')}</span>` : ''}` : '아직 동기화한 적이 없어요 — [지금 동기화]를 눌러 주세요';
+}
+async function stLoad(){
+  try { const r = await api('statusGet'); S.st.snap = r.snap; S.st.marks = r.marks || {}; stInfo(); stRender();
+    if (!r.snap || Date.now() - r.snap.at > 65 * 60 * 1000) stSync(true);   // 1시간 넘게 지났으면 알아서 한 번 새로
+  } catch(e) { $('#stInfo').textContent = '연결 안 됨: ' + e.message; }
+}
+async function stSync(quiet){
+  if (S.st.busy) return; S.st.busy = true; const b = $('#stSync'); b.disabled = true; b.textContent = '동기화 중…';
+  try { const r = await api('statusSync'); S.st.snap = r.snap; S.st.marks = r.marks || {}; S.st.cache = {}; stInfo(); if (S.st.proj) await stFetch(S.st.proj); else stRender(); if (!quiet) toast('구글시트에서 새로 불러왔어요'); }
+  catch(e) { if (!quiet) msg('동기화 오류', esc(e.message)); }
+  finally { S.st.busy = false; b.disabled = false; b.textContent = '지금 동기화'; }
+}
+$('#stSync').onclick = () => stSync(false);
+// 프로젝트 검색: 3글자 이상, 목록 창은 5줄 높이(더 많으면 스크롤)
+function stMatches(q){
+  const k = key(q); if (k.length < 3) return null;
+  const list = (S.st.snap?.projects || []).map(p => ({ name: p[0], pack: p[1], k: key(p[0]) })).filter(p => p.k.includes(k));
+  return list.sort((a, b) => (b.k.startsWith(k) - a.k.startsWith(k)) || a.name.localeCompare(b.name)).slice(0, 100);
+}
+function stOpenDD(){
+  const l = stMatches($('#stQ').value), dd = $('#stDD');
+  dd.innerHTML = !l ? '<div><small>3글자 이상 입력하면 목록이 떠요</small></div>' : l.length ? l.map((p, j) => `<div data-v="${esc(p.name)}" class="${j===0?'act':''}">${esc(p.name)}<small>${p.pack ? '패킹 ' + esc(p.pack) : ''}</small></div>`).join('') : '<div><small>BACKLOG에 없는 프로젝트예요</small></div>';
+  dd.style.display = 'block';
+}
+function stPick(name){ S.st.proj = name; S.st.grp = ''; $('#stQ').value = name; $('#stDD').style.display = 'none'; stFetch(name); }
+async function stFetch(name){
+  const k = key(name);
+  if (S.st.cache[k]) { S.st.rows = S.st.cache[k]; return stRender(); }
+  S.st.rows = null; stRender();
+  try { const r = await api('statusRows', { proj: name }); S.st.marks = r.marks || S.st.marks; S.st.cache[k] = r.rows || []; if (key(S.st.proj) === k) { S.st.rows = S.st.cache[k]; stRender(); } }
+  catch(e) { msg('불러오기 오류', esc(e.message)); }
+}
+$('#stQ').addEventListener('input', stOpenDD); $('#stQ').addEventListener('focus', stOpenDD);
+$('#stDD').addEventListener('mousedown', e => { const d = e.target.closest('[data-v]'); if (d) { e.preventDefault(); stPick(d.dataset.v); } });
+$('#stQ').addEventListener('keydown', e => {
+  const dd = $('#stDD'), items = [...dd.querySelectorAll('[data-v]')]; let a = items.findIndex(x => x.classList.contains('act'));
+  if (e.key==='ArrowDown'||e.key==='ArrowUp') { e.preventDefault(); if (!items.length) return; items[a]?.classList.remove('act'); a = (a + (e.key==='ArrowDown'?1:-1) + items.length) % items.length; items[a].classList.add('act'); items[a].scrollIntoView({block:'nearest'}); }
+  if (e.key==='Enter') { e.preventDefault(); const p = items[a] || items[0]; if (p) stPick(p.dataset.v); }
+  if (e.key==='Escape') dd.style.display = 'none';
+});
+$('#stQ').addEventListener('blur', () => setTimeout(() => $('#stDD').style.display = 'none', 150));
+// 결과: 패킹일 + 귀책업체별/소분류별 그룹 → 그룹을 누르면 목록
+function stRender(){
+  const box = $('#stRes'), name = S.st.proj, snap = S.st.snap;
+  if (!name || !snap) { box.style.display = 'none'; return; }
+  if (!S.st.rows) { box.style.display = ''; box.innerHTML = `<div class="box-h"><h2>${esc(name)}</h2><span class="mut">불러오는 중…</span></div>`; return; }
+  const k = key(name), rows = S.st.rows;   // 서버가 프로젝트명이 똑같은 건만 보냄 ('ECP352 EFEM'과 'ECP352'는 다른 프로젝트)
+  const pj = (snap.projects || []).find(p => key(p[0]) === k), open = rows.filter(r => !stDone(r)).length;
+  const gk = S.st.mode === 'vendor' ? 'vendor' : 's', groups = {};
+  rows.forEach(r => { const g = r[gk] || '(빈칸)'; (groups[g] ||= { n: 0, open: 0 }).n++; if (!stDone(r)) groups[g].open++; });
+  const gl = Object.entries(groups).sort((a, b) => b[1].open - a[1].open || b[1].n - a[1].n || a[0].localeCompare(b[0]));
+  const sel = S.st.grp, shown = sel === '*' ? rows : sel ? rows.filter(r => (r[gk] || '(빈칸)') === sel) : [];
+  shown.sort((a, b) => stDone(a) - stDone(b) || (+b.no || 0) - (+a.no || 0));
+  const chip = (v, lab, g) => `<span class="chip${sel===v?' on':''}" data-stg="${esc(v)}">${esc(lab)}<small>${g.n}건</small>${g.open ? `<small class="open">미처리 ${g.open}</small>` : ''}</span>`;
+  const stCell = r => r.done ? '<span class="st done">처리완료</span>'
+    : S.st.marks[r.no] ? `<span class="st site" title="사이트에서 표시 (${esc(fmtAt(S.st.marks[r.no]))})">처리완료(사이트)</span> <button class="btn sm" data-stun="${esc(r.no)}">취소</button>`
+    : `<span class="st open">미처리</span> <button class="btn sm pri" data-stmk="${esc(r.no)}">처리완료</button>`;
+  box.style.display = '';
+  box.innerHTML = `<div class="box-h"><div class="sthead"><h3>${esc(name)}</h3><span>패킹일 <b>${esc(pj && pj[1] || '정보 없음')}</b></span></div>
+      <div class="stcnt" style="margin-left:auto"><span class="st">전체 ${rows.length}</span><span class="st open">미처리 ${open}</span><span class="st done">처리완료 ${rows.length - open}</span></div></div>
+    <div class="box-b">${rows.length ? `
+      <div class="seg" id="stMode"><button type="button" data-m="vendor" class="${S.st.mode==='vendor'?'on':''}">귀책업체별</button><button type="button" data-m="s" class="${S.st.mode==='s'?'on':''}">소분류별</button></div>
+      <div class="stg">${chip('*', '전체', { n: rows.length, open })}${gl.map(([g, v]) => chip(g, g, v)).join('')}</div>
+      ${shown.length ? `<div class="twrap"><table class="led stt"><thead><tr><th>처리현황</th><th>No</th><th>발생일</th><th>품명 또는 위치</th><th>불량 (소분류)</th><th>불량내용</th><th>발견자</th><th>담당자</th><th>비고 / 세부조치내용</th></tr></thead><tbody>
+        ${shown.map(r => `<tr class="${stDone(r)?'done':''}"><td>${stCell(r)}${r.act ? `<div class="mut" style="font-size:11px;margin-top:2px">${esc(r.act)}</div>` : ''}</td><td>${esc(r.no)}</td><td>${esc(r.date)}</td><td>${esc(r.name)}</td><td>${esc(r.s)}</td><td class="wrap">${esc(r.text)}</td><td>${esc(r.finder)}</td><td>${esc(r.owner)}</td><td class="wrap">${esc(r.ps)}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="mut">위에서 그룹을 누르면 목록이 나와요.</p>'}`
+      : '<p class="mut">처리현황 시트에 이 프로젝트의 부적합 건이 없어요.</p>'}</div>`;
+}
+$('#stRes').addEventListener('click', async e => {
+  const m = e.target.closest('#stMode [data-m]'); if (m) { S.st.mode = m.dataset.m; S.st.grp = ''; return stRender(); }
+  const g = e.target.closest('[data-stg]'); if (g) { S.st.grp = S.st.grp === g.dataset.stg ? '' : g.dataset.stg; return stRender(); }
+  const mk = e.target.closest('[data-stmk]');
+  if (mk) { mk.disabled = true; try { const r = await api('statusMark', { no: mk.dataset.stmk }); S.st.marks = r.marks || S.st.marks; toast(`No ${mk.dataset.stmk} 처리완료로 표시했어요`); } catch(err) { msg('오류', esc(err.message)); } return stRender(); }
+  const un = e.target.closest('[data-stun]');
+  if (un) { if (!await modal({ title:'처리완료 표시를 취소할까요?', body:`<p>No ${esc(un.dataset.stun)} 를 다시 '미처리'로 되돌려요. (구글시트에서 처리완료면 그대로 처리완료)</p>`, buttons:[{label:'닫기', value:false},{label:'취소하기', value:true, cls:'pri'}] })) return;
+    try { const r = await api('statusUnmark', { no: un.dataset.stun }, true); if (r) { S.st.marks = r.marks || {}; toast('표시를 취소했어요'); } } catch(err) { msg('오류', esc(err.message)); } return stRender(); }
+});
 
 /* ================== 개선요청 탭 ================== */
 const REQ_STATUS = ['검토', '작업중', '적용완료', '적용불가'];
