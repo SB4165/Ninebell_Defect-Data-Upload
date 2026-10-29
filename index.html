@@ -178,6 +178,9 @@ table.led tr.done td{color:var(--mut)}
 .stg .chip small{margin-left:4px;color:var(--mut)}
 .stg .chip .open{color:#cf222e;font-weight:700}
 .st.open{background:#ffebe9;color:#cf222e} .st.site{background:#dafbe1;color:#1a7f37;border:1px dashed #1a7f37}
+.sti .who{font-size:12.5px;color:#1a7f37;font-weight:600;margin:2px 0 4px}
+.whobox{margin-top:10px} .whobox label{display:block;font-size:12.5px;font-weight:600;margin-bottom:4px} .whobox input{width:100%;box-sizing:border-box}
+.whobox .hint{font-size:12px;color:var(--mut);min-height:16px;margin-top:4px} .whobox .hint.e{color:#cf222e}
 table.stt td.wrap{min-width:200px}
 .seg{display:inline-flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden;margin-left:4px}
 .seg button{font:inherit;font-size:12.5px;font-weight:600;background:var(--bg2);border:0;padding:4px 12px;color:var(--mut);cursor:pointer}
@@ -325,7 +328,7 @@ select.rst{width:auto;font-size:12px;font-weight:600;padding:3px 6px;border-radi
         <input id="stQ" autocomplete="off" placeholder="프로젝트명 3글자 이상 (예: ECP3)">
         <div class="dd stdd" id="stDD"></div>
       </div>
-      <p class="mut" style="margin:8px 0 0;font-size:12px">· 구글시트 '부적합 처리현황'(숨김 행 포함) → 사이트 한 방향 · 매시간 자동 동기화 · 처리완료 표시·취소는 관리자 비밀번호</p>
+      <p class="mut" style="margin:8px 0 0;font-size:12px">· 구글시트 '부적합 처리현황'(숨김 행 포함) → 사이트 한 방향 · 매시간 자동 동기화 · 처리완료 표시·취소는 처리자 이름 선택 (비밀번호 없음 · 제조팀 사이트와 같은 기록)</p>
       <div id="stRes" class="stres" style="display:none"></div>
       <div id="stSoon"></div>
     </div>
@@ -1271,8 +1274,7 @@ function mockApi(a, d){   // 테스트(?mock=1)용 가짜 서버
   if (a==='caps') return { ok:true, caps:['selSync','unsync','status'] };
   if (a==='statusGet' || a==='statusSync') { if (a==='statusSync' || !st.status) st.status = mockStatus(); const { rows, ...lite } = st.status; const mk = st.marks || (st.marks = {}), cnt = {}; rows.forEach(r => { const c = cnt[key(r.proj)] ||= [0,0]; c[0]++; if (!r.done && !mk[r.no]) c[1]++; }); return { ok:true, snap: { ...lite, nrows: rows.length, cnt }, marks: mk }; }
   if (a==='statusRows') { if (!st.status) st.status = mockStatus(); return { ok:true, rows: st.status.rows.filter(r => key(r.proj) === key(d.proj)), marks: st.marks || (st.marks = {}) }; }
-  if (a==='statusMark') { if (d.pw !== 'vnawlf') return { ok:false, error:'badpw' }; (st.marks ||= {})[d.no] = Date.now(); return { ok:true, marks: st.marks }; }
-  if (a==='statusUnmark') { if (d.pw !== 'vnawlf') return { ok:false, error:'badpw' }; delete (st.marks ||= {})[d.no]; return { ok:true, marks: st.marks }; }
+  if (a==='statusMark' || a==='statusUnmark') { if (!clean(d.by)) return { ok:false, error:'처리한 사람 이름이 없어요' }; st.marks ||= {}; if (a==='statusMark') st.marks[d.no] = { t: Date.now(), by: clean(d.by), team: String(d.team||'') }; else delete st.marks[d.no]; return { ok:true, marks: st.marks }; }
   if (a!=='list' && a!=='check' && a!=='add' && d.pw !== 'vnawlf') return { ok:false, error:'badpw' };
   if (a==='list') return { ok:true, items: JSON.parse(JSON.stringify(st.items)) };
   if (a==='check') return { ok:true, exists: st.fps.includes(d.fp) };
@@ -1649,7 +1651,55 @@ $('#delSynced').onclick = async () => {
 /* ================== 처리현황 탭 (구글시트 → 사이트) ================== */
 S.st = { snap: null, marks: {}, proj: '', mode: 'vendor', grp: '', busy: false, rows: null, cache: {} };   // rows: 고른 프로젝트의 부적합 건 (프로젝트를 고를 때 서버에서 받음)
 const fmtAt = t => { if (!t) return '-'; const d = new Date(t); return `${two(d.getMonth()+1)}/${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`; };
-const stDone = r => r.done || !!S.st.marks[r.no];
+const TEAM = { mfg:'제조팀', qc:'품질팀', quality:'품질팀' };
+// 처리완료 기록: 예전 기록(시각 숫자)과 새 기록({t, by, team}) 둘 다 처리
+const markOf = no => { const m = S.st.marks[no]; return m == null ? null : typeof m === 'object' ? m : { t:+m || 0 }; };
+const stDone = r => r.done || !!markOf(r.no);
+// 처리자 고르기: 변환기 탭의 발행자 명단(S.pubs)에서 초성 검색. 명단에 있는 이름만 (명단을 한 번도 못 받았으면 직접 입력)
+function pickWho(title, body, okLabel){
+  return new Promise(res => {
+    const names = () => S.pubs || [];
+    const m = document.createElement('div'); m.className = 'modal';
+    m.innerHTML = `<div class="mbox" role="dialog" aria-modal="true"><h3>${esc(title)}</h3><div class="mb"><p>${body}</p></div>
+      <div class="whobox"><label for="whoQ">처리자</label><input id="whoQ"><div class="hint" id="whoH"></div></div>
+      <div class="mbtn"><button type="button" class="btn" data-b="0">닫기</button><button type="button" class="btn pri" data-b="1" disabled>${esc(okLabel)}</button></div></div>`;
+    document.body.appendChild(m);
+    const q = m.querySelector('#whoQ'), ok = m.querySelector('[data-b="1"]'), h = m.querySelector('#whoH');
+    const valid = v => names().length ? names().includes(v) : !!v;
+    const check = () => { const v = clean(q.value), g = valid(v); ok.disabled = !g;
+      h.textContent = v && !g ? '명단에 있는 이름을 골라 주세요' : !names().length ? '발행자 명단을 아직 못 받아서 적은 이름 그대로 써요' : ''; h.className = 'hint' + (v && !g ? ' e' : ''); return g; };
+    const done = v => { m.remove(); document.removeEventListener('keydown', esc_, true); res(v); };
+    // Enter: 목록이 열려 있으면 이름만 고르고(확정은 한 번 더 Enter 또는 버튼), 닫혀 있으면 확정 → 목록 처리보다 먼저 열림 여부 기억
+    let ddOpen = false;
+    m.addEventListener('keydown', e => { if (e.target === q) ddOpen = !!m.querySelector('.dd') && m.querySelector('.dd').style.display === 'block'; }, true);
+    listCombo(q, v => { const l = nameMatches(v, names()); return l.map((n, j) => `<div data-v="${esc(n)}" class="${j === 0 ? 'act' : ''}">${esc(n)}</div>`).join('') || `<div><small>${names().length ? '명단에 없는 이름이에요' : '명단 없음 — 그대로 입력돼요'}</small></div>`; },
+      names().length ? '초성 검색 가능 (예: ㄱㅅㅂ)' : '이름 입력', () => check());
+    const dd = m.querySelector('.dd');
+    q.addEventListener('input', check);
+    q.addEventListener('keydown', e => { if (e.key === 'Enter' && !ddOpen) { e.preventDefault(); if (check()) done(clean(q.value)); } });
+    const esc_ = e => { if (e.key === 'Escape') { if (dd.style.display === 'block') { dd.style.display = 'none'; e.stopPropagation(); } else done(null); } };
+    document.addEventListener('keydown', esc_, true);
+    m.addEventListener('mousedown', e => { if (!e.target.closest('.combo')) dd.style.display = 'none'; });
+    m.addEventListener('click', e => { const b = e.target.closest('[data-b]'); if (b) { if (b.dataset.b === '1') { if (check()) done(clean(q.value)); } else done(null); } else if (e.target === m) done(null); });
+    const def = [S.st.by, store.get('nc_worker', '')].find(v => v && valid(v)) || '';
+    q.value = def; check(); q.focus(); if (def) { q.select(); dd.style.display = 'none'; }
+  });
+}
+async function stMark(no, on, btn){
+  const r = (S.st.rows || []).find(x => String(x.no) === String(no)) || {};
+  const what = `No ${esc(no)} · ${esc(r.name || '')}${r.text ? ' — ' + esc(r.text) : ''}`;
+  const by = await pickWho(on ? '누가 처리했나요?' : '처리완료를 취소할까요?', on ? what : `${what}<br>다시 '미처리'로 돌아가요 (제조팀 사이트도 같이). 취소하는 사람 이름을 골라 주세요.`, on ? '처리완료' : '취소하기');
+  if (!by) return;
+  S.st.by = by; store.set('nc_worker', by);
+  if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
+  try {
+    const j = await api(on ? 'statusMark' : 'statusUnmark', { no, team:'qc', by });
+    if (!j || j.ok === false) throw new Error((j && j.error) || '서버 오류');
+    if (j.marks) S.st.marks = j.marks; else if (on) S.st.marks[no] = { t:Date.now(), by, team:'qc' }; else delete S.st.marks[no];
+    toast(on ? `No ${no} 처리완료로 표시했어요` : `No ${no} 표시를 취소했어요`);
+  } catch(e) { msg('저장하지 못했어요', esc(e.message)); }
+  stRender();
+}
 // 패킹일: BACKLOG 표기(26-8-18 등) → 2026.08.18
 function packDate(s){
   const m = String(s || '').match(/(\d{2,4})\D+(\d{1,2})\D+(\d{1,2})/); if (!m) return null;
@@ -1733,11 +1783,13 @@ function stRender(){
   const byNo = (a, b) => (+b.no || 0) - (+a.no || 0), todo = shown.filter(r => !stDone(r)).sort(byNo), done = shown.filter(stDone).sort(byNo);
   const chip = (v, lab, g) => `<span class="chip${sel===v?' on':''}" data-stg="${esc(v)}">${esc(lab)}<small>${g.n}건</small>${g.open ? `<small class="open">미처리 ${g.open}</small>` : ''}</span>`;
   // 카드: ① 처리현황 ② 품명 또는 위치 ③ 불량(소분류) ④ 불량내용 → 그 아래 No·발생일·귀책·발견자·담당자·비고
-  const card = r => { const d = stDone(r), site = !r.done && S.st.marks[r.no];
-    const st = r.done ? '<span class="st done">처리완료</span>' : site ? `<span class="st site" title="사이트에서 표시 (${esc(fmtAt(S.st.marks[r.no]))})">처리완료(사이트)</span>` : '<span class="st open">미처리</span>';
-    const btn = r.done ? '' : site ? `<button class="btn sm" data-stun="${esc(r.no)}">취소</button>` : `<button class="btn sm pri" data-stmk="${esc(r.no)}">처리완료</button>`;
+  const card = r => { const m = markOf(r.no), d = r.done || !!m;
+    const who = !r.done && m ? `처리완료 · ${esc(m.by || '이름 없음')}${m.team ? `(${esc(TEAM[m.team] || m.team)})` : ''} ${esc(fmtAt(m.t))}` : '';
+    const st = d ? `<span class="st done">처리완료${r.done ? '(시트)' : ''}</span>` : '<span class="st open">미처리</span>';
+    const btn = r.done ? '' : m ? `<button type="button" class="btn sm" data-stun="${esc(r.no)}">취소</button>` : `<button type="button" class="btn sm pri" data-stmk="${esc(r.no)}">처리완료</button>`;
     return `<div class="sti ${d ? 'done' : ''}">
       <div class="t1">${st}${r.act ? `<span class="act">${esc(r.act)}</span>` : ''}${btn}</div>
+      ${who ? `<div class="who">${who}</div>` : ''}
       <div class="nm">${esc(r.name || '(품명 없음)')}</div>
       <div class="df">${r.s ? `<span class="tg">${esc(r.s)}</span>` : ''}<span>${esc(r.text || '')}</span></div>
       <div class="mt">No ${esc(r.no)} · ${esc(r.date || '-')} · 귀책 ${esc(r.vendor || '-')} · 발견 ${esc(r.finder || '-')} · 담당 ${esc(r.owner || '-')}</div>
@@ -1757,11 +1809,8 @@ $('#stRes').addEventListener('click', async e => {
   const m = e.target.closest('#stMode [data-m]'); if (m) { S.st.mode = m.dataset.m; S.st.grp = ''; return stRender(); }
   const g = e.target.closest('[data-stg]'); if (g) { S.st.grp = g.dataset.stg; return stRender(); }
   if (e.target.closest('[data-stx]')) { S.st.proj = ''; S.st.rows = null; $('#stQ').value = ''; return stRender(); }
-  const mk = e.target.closest('[data-stmk]');
-  if (mk) { try { const r = await api('statusMark', { no: mk.dataset.stmk }, true); if (r) { S.st.marks = r.marks || S.st.marks; toast(`No ${mk.dataset.stmk} 처리완료로 표시했어요`); } } catch(err) { msg('오류', esc(err.message)); } return stRender(); }
-  const un = e.target.closest('[data-stun]');
-  if (un) { if (!await modal({ title:'처리완료 표시를 취소할까요?', body:`<p>No ${esc(un.dataset.stun)} 를 다시 '미처리'로 되돌려요. (구글시트에서 처리완료면 그대로 처리완료)</p>`, buttons:[{label:'닫기', value:false},{label:'취소하기', value:true, cls:'pri'}] })) return;
-    try { const r = await api('statusUnmark', { no: un.dataset.stun }, true); if (r) { S.st.marks = r.marks || {}; toast('표시를 취소했어요'); } } catch(err) { msg('오류', esc(err.message)); } return stRender(); }
+  const mk = e.target.closest('[data-stmk]'); if (mk) return stMark(mk.dataset.stmk, true, mk);
+  const un = e.target.closest('[data-stun]'); if (un) return stMark(un.dataset.stun, false, un);
 });
 
 /* ================== 개선요청 탭 ================== */
