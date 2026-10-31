@@ -182,6 +182,8 @@ table.led tr.done td{color:var(--mut)}
 .sti .pnl{font-size:14px;color:var(--fg);word-break:break-all;margin-top:-2px} .sti .pnl span{color:var(--mut);font-size:12px;margin-right:6px}
 @media (max-width:760px){ .sti .pnl{font-size:15px} }
 .sti.done .pnl{color:var(--mut)}
+.sti .srd{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:-2px} .sti .srd span{color:var(--mut);font-size:12px;font-weight:400;margin-right:6px} .sti .srd.ask{color:#9a6700}
+@media (max-width:760px){ .sti .srd{font-size:15px} }
 .sti .who{font-size:12.5px;color:#1a7f37;font-weight:600;margin:2px 0 4px}
 .whobox{margin-top:10px} .whobox .combo{min-height:212px} .whobox .dd{top:auto;max-height:170px;overflow:auto}   /* 목록 자리를 미리 비워 둠 → 목록이 떠도 버튼을 가리거나 밀지 않음 */ .whobox label{display:block;font-size:12.5px;font-weight:600;margin-bottom:4px} .whobox input{width:100%;box-sizing:border-box}
 .whobox .hint{font-size:12px;color:var(--mut);min-height:16px;margin-top:4px} .whobox .hint.e{color:#cf222e}
@@ -1282,7 +1284,7 @@ async function call(action, data){
 }
 function mockStatus(){   // 테스트용 처리현황 데이터
   const V = ['아진물산','기구','키앤스','세라텍'], SS = ['Hole','외관손상','오입고','치수불량'], rows = [];
-  ['ECP352','ECP352 EFEM','ECP349','TT90-001'].forEach((p, pi) => { for (let i = 0; i < 6 - pi; i++) rows.push({ no: String(2800 + pi*10 + i), done: i % 3 === 0, act: ['업체반출','재발주','방문조치'][i%3], date: ` 08/${two(i+1)}`, date2:'', proj: p, name: 'PART ' + i, pn: 'P-' + i, qty: '1', vendor: V[(i+pi)%4], s: SS[i%4], finder: '홍길동', owner: '김수원', text: '불량 내용 ' + i, ps: i===2 ? 'S/N : X' : '' }); });
+  ['ECP352','ECP352 EFEM','ECP349','TT90-001'].forEach((p, pi) => { for (let i = 0; i < 6 - pi; i++) rows.push({ no: String(2800 + pi*10 + i), done: i % 3 === 0, act: ['업체반출','재발주','방문조치'][i%3], date: ` 08/${two(i+1)}`, date2: ['','08/11','26.11.02','11월 3일','업체 확인중','-'][i], proj: p, name: 'PART ' + i, pn: 'P-' + i, qty: '1', vendor: V[(i+pi)%4], s: SS[i%4], finder: '홍길동', owner: '김수원', text: '불량 내용 ' + i, ps: i===2 ? 'S/N : X' : '' }); });
   return { at: Date.now(), by: '수동', rows, projects: (() => { const t = new Date(), f = n => { const d = new Date(t); d.setDate(t.getDate() + n); return `${String(d.getFullYear()).slice(2)}-${d.getMonth()+1}-${d.getDate()}`; }; return [['ECP352', f(5)],['ECP352 EFEM', f(20)],['ECP349',''],['ECP350', f(0)],['ECP351', f(-1)],['ECP353', f(14)],['ECP354',''],['TT90-001', f(2) + ', ' + f(30)]]; })(), err: [] };
 }
 function mockApi(a, d){   // 테스트(?mock=1)용 가짜 서버
@@ -1674,6 +1676,26 @@ $('#delSynced').onclick = async () => {
 /* ================== 처리현황 탭 (구글시트 → 사이트) ================== */
 S.st = { snap: null, marks: {}, proj: '', mode: 'vendor', grp: '', busy: false, rows: null, cache: {} };   // rows: 고른 프로젝트의 부적합 건 (프로젝트를 고를 때 서버에서 받음)
 const fmtAt = t => { if (!t) return '-'; const d = new Date(t); return `${two(d.getMonth()+1)}/${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`; };
+// 재납일/조치일 (처리현황 시트 E열, 서버가 date2로 보냄) → 2026.10.31. 시트에는 '10/31'처럼 연도 없이 적힘
+//   연도: 발생일 기준 — 발생일은 오늘 이전 가장 가까운 날짜의 해, 재납일이 발생일보다 앞서면 다음 해
+//   날짜가 아닌 글자는 그대로, 비었거나 '-'면 '' (카드에 '구매팀 문의')
+function mdOf(s){
+  s = clean(s); let m = s.match(/^(\d{4}|\d{2})\s*[.\-\/년]\s*(\d{1,2})\s*[.\-\/월]\s*(\d{1,2})/);
+  if (m) return { y: m[1].length === 2 ? 2000 + +m[1] : +m[1], mo: +m[2], d: +m[3] };
+  if ((m = s.match(/^(\d{1,2})\s*[.\/월]\s*(\d{1,2})\s*일?$/))) return { mo: +m[1], d: +m[2] };
+  return null;
+}
+function fmtRedate(s, occ){
+  s = clean(s); if (!s || s === '-') return '';
+  const r = mdOf(s); if (!r || r.mo < 1 || r.mo > 12 || r.d < 1 || r.d > 31) return s;
+  if (!r.y) {
+    const now = new Date(), o = mdOf(occ);
+    let oy = o ? (o.y || (new Date(now.getFullYear(), o.mo - 1, o.d) > now ? now.getFullYear() - 1 : now.getFullYear())) : 0;
+    if (o && oy) r.y = (r.mo < o.mo || (r.mo === o.mo && r.d < o.d)) ? oy + 1 : oy;
+    else { const Y = now.getFullYear(); r.y = [Y - 1, Y, Y + 1].reduce((a, b) => Math.abs(new Date(b, r.mo - 1, r.d) - now) < Math.abs(new Date(a, r.mo - 1, r.d) - now) ? b : a); }
+  }
+  return `${r.y}.${String(r.mo).padStart(2, '0')}.${String(r.d).padStart(2, '0')}`;
+}
 const TEAM = { mfg:'제조팀', qc:'품질팀', quality:'품질팀' };
 // 처리완료 기록: 예전 기록(시각 숫자)과 새 기록({t, by, team}) 둘 다 처리
 const markOf = no => { const m = S.st.marks[no]; return m == null ? null : typeof m === 'object' ? m : { t:+m || 0 }; };
@@ -1829,6 +1851,7 @@ function stRender(){
       ${who ? `<div class="who">${who}</div>` : ''}
       <div class="nm">${esc(r.name || '(품명 없음)')}</div>
       <div class="pnl"><span>품번</span>${esc(r.pn || '-')}</div>
+      ${(d => `<div class="srd${d ? '' : ' ask'}"><span>재납일/조치일</span>${esc(d || '구매팀 문의')}</div>`)(fmtRedate(r.date2, r.date))}
       <div class="df">${r.s ? `<span class="tg">${esc(r.s)}</span>` : ''}<span>${esc(r.text || '')}</span></div>
       <div class="mt">No ${esc(r.no)} · ${esc(r.date || '-')} · 귀책 ${esc(r.vendor || '-')} · 발견 ${esc(r.finder || '-')} · 담당 ${esc(r.owner || '-')}</div>
       ${r.ps ? `<div class="ps">비고 · ${esc(r.ps)}</div>` : ''}</div>`; };
