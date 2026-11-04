@@ -2,6 +2,8 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<script>/* 통합 화면(/Ninebell_Defect-Label/)으로 이동: 이 화면을 단독으로 열었을 때만. ?solo 붙이면 단독 화면 그대로 */
+if (window.top === window && !/[?&]solo(=|&|$)/.test(location.search)) { var q = location.search.replace(/^\?/, ''); location.replace('/Ninebell_Defect-Label/?team=qa' + (q ? '&' + q : '') + location.hash); }</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="only light">
 <!-- 웹앱 설치 (홈 화면·바탕화면에 앱처럼 추가) -->
