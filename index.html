@@ -1698,7 +1698,7 @@ function fmtRedate(s, occ){
   }
   return `${r.y}.${String(r.mo).padStart(2, '0')}.${String(r.d).padStart(2, '0')}`;
 }
-const TEAM = { mfg:'제조팀', qc:'품질팀', quality:'품질팀' };
+const TEAM = { mfg:'제조팀', qc:'품질팀', quality:'품질팀', pur:'구매팀' };
 // 처리완료 기록: 예전 기록(시각 숫자)과 새 기록({t, by, team}) 둘 다 처리
 const markOf = no => { const m = S.st.marks[no]; return m == null ? null : typeof m === 'object' ? m : { t:+m || 0 }; };
 const stDone = r => r.done || !!markOf(r.no);
