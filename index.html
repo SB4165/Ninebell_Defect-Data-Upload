@@ -852,7 +852,7 @@ function kwName(text){
 function syncKwName(it){
   const kn = kwName(it.text);
   if (kn) { it.name = kn; it.nameKw = kn; }
-  else if (it.nameKw) { if (fmtName(it.name) === it.nameKw) { const p = S.parts.get(key(it.pnOrig || it.pn)); it.name = p ? fmtName(p.name) : ''; } it.nameKw = ''; }
+  else if (it.nameKw) { if (fmtName(it.name) === it.nameKw) { const p = S.parts.get(key(it.pnOrig || it.pn)); it.name = p ? fmtPartName(p.name) : ''; } it.nameKw = ''; }
   syncKwPn(it);
 }
 // 품명이 PROPOSAL · SCS 이면 품번은 '-' (FRAME 빠른 입력과 같음). 품명이 다시 바뀌면 원래 품번으로 되돌림
@@ -878,7 +878,7 @@ function makeItem(p){
   const pt = projName ? projectType(projName, p.kw) : { type:'', list:[] };
   const it = {
     date: today(), proj: p.po ? 'SPARES_ACM' : projName, type: p.po || pt.type, types: p.po ? [] : pt.list, po: p.po || '', projUnknown: !p.po && (!!p.proj?.unknown || (projName && !pt.type)),
-    finder: p.finder || '', pub: IS_MOBILE ? store.get('nc_pub','') : '', name: fmtName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
+    finder: p.finder || '', pub: IS_MOBILE ? store.get('nc_pub','') : '', name: fmtPartName(p.part?.name), pn: p.part?.pn || '', partUnknown: !!p.part?.unknown,
     qty: p.qtyAsk && p.qty === '' ? '' : (p.qty || '1'), qtyAsk: !!p.qtyAsk && p.qty === '', b:'', m:'', s:'', when:'', text: text.join(' / '), act: p.act || '', vendor: p.vendor || '', ps: p.ps || '',
     nameWarn: nameWarn[0] || '', vendorWarn: p.vendorRaw || '', vendorAsk: !!p.vendorAsk && !p.vendor,
     plant: p.plant || '', recs: [], manual:false, grp: p.grp || '', qtyWarn: !!p.qtyWarn
@@ -915,8 +915,10 @@ function formatText(it){
     `P.S : ${it.ps}`
   ].join('\n');
 }
-// 품명 표기: 영문은 대문자, 프레임/FRAME이 들어가면 '-'
-const fmtName = n => { n = clean(n); if (!n) return ''; if (CONFIG.QUICK_NAMES.includes(n.toUpperCase())) return n.toUpperCase(); if (/프레임|FRAME/i.test(n)) return '-'; return n.toUpperCase(); };
+// 품명 표기: 영문은 대문자 (직접 입력한 품명은 FRAME이 들어가도 그대로)
+const fmtName = n => { n = clean(n); return n ? n.toUpperCase() : ''; };
+// 품번표에서 자동으로 채우는 품명: 프레임/FRAME이 들어가면 '-' (빠른 입력 이름은 그대로)
+const fmtPartName = n => { n = fmtName(n); if (!n || CONFIG.QUICK_NAMES.includes(n)) return n; return /프레임|FRAME/i.test(n) ? '-' : n; };
 // 수량: 칸에는 숫자만, 결과에는 'EA'를 자동으로 붙임
 const qtyText = q => { q = String(q||'').replace(/\D/g,''); return q ? q + ' EA' : ''; };
 const ko = (a,b) => String(a).localeCompare(String(b),'ko');
@@ -1049,7 +1051,7 @@ function partMatches(q){
 }
 const partDDHtml = q => { const l = partMatches(q);
   if (!l) return '<div><small>2글자 이상 입력하면 목록이 떠요</small></div>';
-  return l.map((p,j)=>`<div data-v="${esc(p.pn)}" data-t="${esc(fmtName(p.name))}" class="${j===0?'act':''}">${esc(p.pn)}<small>${esc(fmtName(p.name))}</small></div>`).join('') || '<div><small>목록에 없음 — 그대로 입력돼요</small></div>'; };
+  return l.map((p,j)=>`<div data-v="${esc(p.pn)}" data-t="${esc(fmtPartName(p.name))}" class="${j===0?'act':''}">${esc(p.pn)}<small>${esc(fmtPartName(p.name))}</small></div>`).join('') || '<div><small>목록에 없음 — 그대로 입력돼요</small></div>'; };
 function openDD(input){
   const card = input.closest('.card'), it = S.items[+card.dataset.i], dd = input.nextElementSibling;
   if (input.dataset.combo === 'proj') dd.innerHTML = projDDHtml(input.value);
@@ -1113,7 +1115,7 @@ function pickCombo(el, name, type){ const i = +el.closest('.card').dataset.i; re
 function pickPart(i, pn){
   const it = S.items[i], p = S.parts.get(key(pn));
   it.pn = pn; it.pnPick = pn; it.pnOrig = ''; it.partUnknown = !p;
-  if (p && !kwName(it.text)) it.name = fmtName(p.name);
+  if (p && !kwName(it.text)) it.name = fmtPartName(p.name);
   syncKwPn(it); refreshCard(i);
 }
 // 프로젝트를 목록에서 고르면 장비타입도 같이 채움 (같은 프로젝트에 TYPE이 여러 개면 고른 것으로)
@@ -1213,7 +1215,7 @@ cards.addEventListener('change', e => {
     const pj = findProject(it.proj); const pt = projectType(pj?.name || it.proj, KW(it.proj) || ''); it.type = pt.type || it.type; it.types = pt.list; it.projUnknown = !pt.type; refreshCard(j); }, 250); return; }
   // 품번을 직접 쳤을 때만 품명 맞춤. 목록을 눌러 고르는 중이면 고른 값이 우선 → 잠깐 기다렸다 확인
   if (k==='pn') { setTimeout(() => { const j = S.items.indexOf(it); if (j < 0 || (it.pnPick && it.pnPick === it.pn)) return;
-    const p = S.parts.get(key(it.pn)); if (p) { if (!kwName(it.text)) it.name = fmtName(p.name); it.partUnknown = false; } refreshCard(j); }, 250); return; }
+    const p = S.parts.get(key(it.pn)); if (p) { if (!kwName(it.text)) it.name = fmtPartName(p.name); it.partUnknown = false; } refreshCard(j); }, 250); return; }
   refreshOut(i);
 });
 cards.addEventListener('keydown', e => {
